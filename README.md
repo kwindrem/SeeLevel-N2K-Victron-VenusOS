@@ -57,7 +57,7 @@ SeeLevelServiceName in OverviewMobile.qml
 
 SeeLevelRepeater must be set up to run at system boot. The Venus service starter provides a simple mechanism: simply create a symbolic link to the actual code. 
 
-The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! The entire TankRepeater directory should be copied to /data.
+The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! All folders and files in this GitHub should be copied to /data, preserving the file hierarchy. It may be easier to download the included .zip file, unzip that to a directory on your host then copy the entire directory to the Venus device.
 
 The unix command 'scp' can be used from a computer on the same network as the Venus hardware to copy files. 'ssh' can be used to log in and make changes. From Mac OS, these can be issued from Terminal. Not sure about Windows.
 
@@ -130,6 +130,20 @@ When Venus software is updated, it may be necessary to migrate these changes int
 Changes in OverviewMobile.qml included in this package has been marked to easily search for the changed areas making it fairly easy to migrate the changes into new versions of the venus system.
 
 Changes to TileTank.qml are extensive. Most likely, you will simply be able to overwrite TileTank.qml after the firmware update. If not, a carefull study of the two versions will be necessary to how best to merge the versions. Many of the changes made to TileTank.qml support display of more than 3-4 tanks and may not be necessary for your system. On the other hand, the changes to support no response and errors from the tank will most likely be necessary.
+
+Hardware:
+
+This package relies on an NEMA2000 version of the Garnet SeeLevel repeater. It will not work with the standart or RV-C versions. Garnet's number for this version is 709-K2K NLP.
+
+This version of the senor system uses a propriatary connector for the CAN-bus connection.
+This connector mates with the connector on the back of the SeeLevel control unit: 3M 37104-2165-000 FL 100
+And is available from DigiKey: https://www.digikey.com/product-detail/en/3m/37104-2165-000-FL-100/3M155844-ND/1238214
+
+A cable can be made up with this connector on one end and an RJ-45 on the other to plug into a VE.Can connector on the Venus device. You can alternatively make up a cable from this connector to a standard CAN-bus connector then use the VE.Can to CAN-bus adapter cable. Be sure to terminate the SeeLevel end of the cable, especially if it is long. I was able to crimp a 1/4 watt 120 ohm resister into the pins of the 3M connector along with the wires from the RJ-45.
+
+I have included a PDF of the various pinouts. The 3M connector pins are numbered.
+
+You need to connect CAN-H, CAN-L and -Voltage low (aka NET-C (V-), aka grond). I left +Voltage disconnected. Ground is required since the VE.Can connection on Venus is floating.
 
 
 I must give credit to Ben Brantley for providing his code that evolved into this package. You can find him on the Victron community forum.
