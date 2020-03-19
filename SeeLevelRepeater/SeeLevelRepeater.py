@@ -226,14 +226,15 @@ class Repeater:
 # it collects and validates information from SeeLevel and forwards it to the tank repeater objects
 # Data from SeeLevel is read as quickly as possible followed by a second read of the first parameter (tank number)
 # if that second read matches the first, we assume the intermediate reads are valid
-# if the second read does not match the first, processing is skipped until the next pass
+# if not, a second attemt to read all values is made followed by a third read of the tank number
+# if the third read does not match the second, processing is skipped until the next pass
 #
 # this method runs even if a SeeLevel sensor system isn't attached to Venus. In this case, the SeeLevel service won't exist
-# read attempts to that service will generate an exception which is trapped here to skip processing.
+# Read attempts to that service will generate an exception which is trapped here to skip processing.
 #
 # This method runs frequently to avoid missed tanks, however normally, the same tank persists through multiple passes
 # to avoid excessive CPU load, tank information is only processed once per second
-
+#
 # persistent storage for SeeLevel data are created
 # so objects don't have to be fetched each time this process runs
 
