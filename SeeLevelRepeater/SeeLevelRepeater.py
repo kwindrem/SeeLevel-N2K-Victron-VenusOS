@@ -145,8 +145,10 @@ class Repeater:
     def _update(self):
 
 	if self.TimeoutCount > self.RepeaterTimeout:
-		if self.RepeaterService != None:
+# log message only once
+		if self.RepeaterService != None and self.RepeaterService['/Connected'] == 1:
 			self.RepeaterService['/Connected'] = 0
+			logging.warning ("Tank %d is NOT responding", self.Tank)
 	else:
 		self.TimeoutCount += 1
 
@@ -213,7 +215,10 @@ class Repeater:
 	self.RepeaterService['/Level'] = level
 	self.RepeaterService['/Capacity'] = capacity
 	self.RepeaterService['/Remaining'] = capacity * level / 100
-	self.RepeaterService['/Connected'] = 1
+	if self.RepeaterService['/Connected'] == 0:
+		self.RepeaterService['/Connected'] = 1
+		logging.warning ("Tank %d is responding", self.Tank)
+
 
 	self.TimeoutCount = 0;
 	return True
@@ -240,6 +245,7 @@ SeeLevelTankObject = None
 SeeLevelFluidLevelObject = None
 SeeLevelCapacityObject = None
 LastTank = 0
+DiscardedMessages = 0
 
 # this is the dBus bus (system in this case)
 TheBus = None
@@ -264,6 +270,7 @@ def CheckForSeeLevel():
 	global RepeaterList
 	global LastTank
 	global TheBus
+	global DiscardedMessages
 
 	try:
 		if SeeLevelTankObject == None:
@@ -297,20 +304,21 @@ def FluidTypeHandler (changes):
 		return
 
 # quickly grab a set of values
-# range check tank to avoid out of bounds indexing
-	if tank < 0 or tank >= len(RepeaterList):
-		logging.info ("tank %d out of range", tank)
-		return
-		
 	level = SeeLevelFluidLevelObject.GetValue()
 	capacity = SeeLevelCapacityObject.GetValue ()
 	tank2 = SeeLevelTankObject.GetValue()
 
-# if not on the same tank, skip processing
+# if tank from signal doesn't match tank read from object, skip processing
 	if tank != tank2:
-		logging.info ("tank mismatch %d from signal %d from object read", tank, tank2)
+		DiscardedMessages += 1
+		logging.warning ("tank mismatch: %d from signal vs %d from object read", tank, tank2)
 		return
 
+# range check tank to avoid out of bounds indexing
+	if tank < 0 or tank >= len(RepeaterList):
+		logging.warning ("tank %d out of range", tank)
+		return
+		
 # if no repeater service for this tank yet, create it first
 	if RepeaterList [tank] == None:
 		RepeaterList [tank] = Repeater (tank)
@@ -329,6 +337,8 @@ def main():
      
 # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
 	DBusGMainLoop(set_as_default=True)
+
+        logging.warning("SeeLevel repeater starting up")
 
 # install a signal handler for /FluidType
 # it is hoped the only object reporting changes will be the SeeLevel object
