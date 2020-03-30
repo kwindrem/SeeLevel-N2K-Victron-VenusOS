@@ -270,7 +270,6 @@ def CheckForSeeLevel():
 	global RepeaterList
 	global LastTank
 	global TheBus
-	global DiscardedMessages
 
 	try:
 		if SeeLevelTankObject == None:
@@ -297,6 +296,9 @@ def CheckForSeeLevel():
 # messing up processing
  
 def FluidTypeHandler (changes):
+
+	global DiscardedMessages
+
 	tank = int (changes.get ("Value"))
     
 # ignore signals until we have detected the SeeLevel dBus object and set up property pointers
