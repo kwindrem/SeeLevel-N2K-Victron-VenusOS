@@ -313,7 +313,7 @@ def FluidTypeHandler (changes):
 # if tank from signal doesn't match tank read from object, skip processing
 	if tank != tank2:
 		DiscardedMessages += 1
-		logging.warning ("tank mismatch: %d from signal vs %d from object read", tank, tank2)
+		logging.warning ("Tank mismatch: %d from signal vs %d from object read, %d total messages discarded", tank, tank2, DiscardedMessages)
 		return
 
 # range check tank to avoid out of bounds indexing
