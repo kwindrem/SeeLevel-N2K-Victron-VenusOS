@@ -26,7 +26,10 @@
 # The GUI can then hide test /Connected to hide stale information from the Tanks column
 
 # SeeLevel reports information for one tank about every 1-2 seconds even if no changes have occurred for that tank
-# It cycles through active tanks so a complete update of all tanks is sent within 3-8 seconds
+# It cycles through active tanks so a complete update of all tanks is sent approximately every 3-4 seconds
+# Note: SeeLevel can get into a mode where all tanks are sent very quickly, then no activity for ~ 3 seconds
+# Polling for changes even as often as every 50 mS can miss SeeLevel messages, resulting in a no response error for a specific tank
+# For this reason, a signal handler triggers processing of tank info based on a change to /FluidType
 # SeeLevel sends /FluidType, /Level and /Capacity
 # /FluidType is enumerated consistently with other Victron tanks
 # /Level is in percentage (100 = full)
@@ -36,6 +39,7 @@
 # SeeLevel reports capacity in liters * 10 and the tank driver converts this to cubic meters used elsewhere in the Venus code
 # so SeeLevel's capacity is passed on to the repeater services.
 # /Remaining is calculated locally
+
 
 import gobject
 import platform
@@ -64,20 +68,19 @@ ProductName = 'SeeLevel Tank %d Repeater'
 
 # timer periods and watchdog timeout are defined here for convenience
 
-# If a repater service is not updated at least every 10 seconds
+# If a repater service is not updated at least every 5 seconds
 # it is marked as disconnected so the GUI can alert the user that
 # the level should not be trusted
 
-RepeaterTimeoutInSeconds = 10
+RepeaterTimeoutInSeconds = 5.0
 
 # the update loop in the Repeater only manages timeouts so runs infrequently
 RepeaterTimerPeriodInSeconds = 1.0
 
-# the SeeLevel scan period is set to avoid missing tanks before SeeLevel moves on to the next tank
-# SeeLevel often reports tanks with little time between them so the scan interval must be very short
-# Testing indicates 50 mS between checks prevents missing a tank
+# the SeeLevel scan period is only used to detect presence of the SeeLevel dBus object
+# actual processing of information from SeeLevel is done in a dBus signal handler
 
-SeeLevelScanPeriodInSeconds = 0.05
+SeeLevelScanPeriodInSeconds = 1.0
 
 SeeLevelScanPeriod = int (SeeLevelScanPeriodInSeconds * 1000)		# in timer ticks
 RepeaterTimerPeriod = int (RepeaterTimerPeriodInSeconds * 1000)		# in timer ticks
@@ -118,7 +121,6 @@ class Repeater:
 
     Tank = 0
     TimeoutCount = 0
-    DisconnectTime = 0
 
 
     def __init__(self, tank):
@@ -145,9 +147,6 @@ class Repeater:
 	if self.TimeoutCount > self.RepeaterTimeout:
 		if self.RepeaterService != None:
 			self.RepeaterService['/Connected'] = 0
-			self.DisconnectTime += 1
-####
-			self.RepeaterService['/HardwareVersion'] = self.DisconnectTime
 	else:
 		self.TimeoutCount += 1
 
@@ -195,7 +194,6 @@ class Repeater:
 	self.RepeaterService.add_path ('/FluidType', self.Tank, writeable = True, onchangecallback = self._handlechangedvalue)
 	self.RepeaterService.add_path ('/Capacity', 0, writeable = True, onchangecallback = self._handlechangedvalue)
 	self.RepeaterService.add_path ('/Remaining', 0, writeable = True, onchangecallback = self._handlechangedvalue)
-####	self.RepeaterService.add_path ('/DisconnectTime', 0, writeable = True, onchangecallback = self._handlechangedvalue)
 
 	self.TimeoutCount = 0;
 
@@ -243,89 +241,106 @@ SeeLevelFluidLevelObject = None
 SeeLevelCapacityObject = None
 LastTank = 0
 
+# this is the dBus bus (system in this case)
+TheBus = None
+
 # RepeaterList provides persistent storage for a repeater instance so that it may be called from CheckSeeLevel 
 # This list is indexed by fluid type and needs to be expanded if additional fluid types are added in the future
 
 RepeaterList =  [None,  None, None, None, None, None ]
 
-# LastUpdate keeps track of the time each tank repeater was updated
-# This list is indexed by fluid type and needs to be expanded if additional fluid types are added in the future
+# check to see if SeeLevel dBus object exists
+# innitialize object pointers if so
+# invalidate object pointers if not
 
-LastUpdate =   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ]
-
-def CheckSeeLevel():
+def CheckForSeeLevel():
 
 	global SeeLevelServiceName		# defined at top of the module for ease of maintanence
 
-	global SeeLevelObject
 	global SeeLevelTankObject
 	global SeeLevelFluidLevelObject
 	global SeeLevelCapacityObject
 
 	global RepeaterList
 	global LastTank
-	global LastUpdate
+	global TheBus
 
 	try:
-
-# initialize See Level object pointers if not done already
-# once initialized, these values persist to save time in future passes
-# if the SeeLevel service does not exist, a DBusException occurs and is handled below, skipping all processing here
-
-            if SeeLevelTankObject == None:
-		bus = dbus.SystemBus()
-		SeeLevelTankObject = bus.get_object(SeeLevelServiceName, '/FluidType')
-		SeeLevelFluidLevelObject = bus.get_object(SeeLevelServiceName, '/Level')
-		SeeLevelCapacityObject = bus.get_object (SeeLevelServiceName, '/Capacity')
+		if SeeLevelTankObject == None:
+			SeeLevelTankObject = TheBus.get_object(SeeLevelServiceName, '/FluidType')
+			SeeLevelFluidLevelObject = TheBus.get_object(SeeLevelServiceName, '/Level')
+			SeeLevelCapacityObject = TheBus.get_object (SeeLevelServiceName, '/Capacity')
 	
-	    currentTime = time.time()
-
-# quickly grab a set of values
-	    tank = SeeLevelTankObject.GetValue()
-
-# range check tank to avoid out of bounds indexing
-	    if tank < 0 or tank >= len(RepeaterList):
-	    	logging.info ("tank %d out of range", tank)
-	    	return True
-# skip if this tank was processed within the last second
-	    if currentTime < LastUpdate [tank] + 1:
-	    	return True
-
-	    level = SeeLevelFluidLevelObject.GetValue()
-	    capacity = SeeLevelCapacityObject.GetValue ()
-	    tank2 = SeeLevelTankObject.GetValue()
-
 	except dbus.DBusException:
 		SeeLevelTankObject = None
-		return True
+		SeeLevelFluidLevelObject = None
+		SeeLevelCapacityObject = None
+		LastTank = 0
+
+	return True
+
+# main () registers this as the dBus signal handler for /FluidType changes
+# the only one that should be occurring is SeeLevel
+
+# read fluid level and capacity using GetValue()
+# read fluid type using GetValue() and check for a match with the one passed to the signal handler
+# pass the tank infomation to the repeater object if these two values match
+# silently reject the information if not
+# rejecting based on tank mismatch should prevent other objects reporting /FluidType changes from
+# messing up processing
+ 
+def FluidTypeHandler (changes):
+	tank = int (changes.get ("Value"))
+    
+# ignore signals until we have detected the SeeLevel dBus object and set up property pointers
+	if SeeLevelTankObject == None:
+		return
+
+# quickly grab a set of values
+# range check tank to avoid out of bounds indexing
+	if tank < 0 or tank >= len(RepeaterList):
+		logging.info ("tank %d out of range", tank)
+		return
+		
+	level = SeeLevelFluidLevelObject.GetValue()
+	capacity = SeeLevelCapacityObject.GetValue ()
+	tank2 = SeeLevelTankObject.GetValue()
 
 # if not on the same tank, skip processing
-        if tank != tank2:
-	    return True
+	if tank != tank2:
+		logging.info ("tank mismatch %d from signal %d from object read", tank, tank2)
+		return
 
-# if no repeater service for this tank yet, create it first 
+# if no repeater service for this tank yet, create it first
 	if RepeaterList [tank] == None:
-	    RepeaterList [tank] = Repeater (tank)
+		RepeaterList [tank] = Repeater (tank)
 
 # forward SeeLevel values to the repeater
 	RepeaterList [tank].UpdateRepeater (level, capacity)
-	LastUpdate [tank] = currentTime
-	return True
+	return
+
 
 
 def main():
 
-    from dbus.mainloop.glib import DBusGMainLoop
- 
+	from dbus.mainloop.glib import DBusGMainLoop
+
+	global TheBus
+     
 # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
-    DBusGMainLoop(set_as_default=True)
+	DBusGMainLoop(set_as_default=True)
 
+# install a signal handler for /FluidType
+# it is hoped the only object reporting changes will be the SeeLevel object
+	TheBus = dbus.SystemBus()
+	TheBus.add_signal_receiver (FluidTypeHandler, path = "/FluidType",
+                dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged')
 
-# periodically look at SeeLevel information
-    gobject.timeout_add(SeeLevelScanPeriod, CheckSeeLevel)
+# periodically look for SeeLevel service to innitialize pointers
+	gobject.timeout_add(SeeLevelScanPeriod, CheckForSeeLevel)
 
-    mainloop = gobject.MainLoop()
-    mainloop.run()
+	mainloop = gobject.MainLoop()
+	mainloop.run()
 
 # Always run our main loop so we can process updates
 main()
