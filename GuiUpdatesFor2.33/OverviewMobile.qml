@@ -17,7 +17,7 @@ OverviewPage {
 //////// SeeLevel -- add this, may also need to be customized to a specific system
 // The name of the SeeLevel dBus service
 // may need to be changed on each system
-	property string SeeLevelServiceName: "com.victronenergy.tank.socketcan_can0_di0_uc855"
+	property string seeLevelServiceName: "com.victronenergy.tank.socketcan_can0_di0_uc855"
 //////// SeeLevel -- end add this
 
 	property variant sys: theSystem
@@ -598,7 +598,7 @@ OverviewPage {
 
 //////// SeeLevel -- add this
 // hide the service for the physical sensor system because it shows values for multiple tanks 
-			if (service.name !== SeeLevelServiceName) // skip N2K SeeLevel dBus object
+			if (service.name !== seeLevelServiceName) // skip N2K SeeLevel dBus object
 //////// SeeLevel -- end add this
 				tanksModel.append({serviceName: service.name})
 		}
