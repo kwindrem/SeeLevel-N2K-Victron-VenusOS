@@ -24,6 +24,7 @@ Rectangle
 	id: root
 
 	property string bindPrefix: serviceName
+    property string pumpBindPrefix
 
 	property VBusItem levelItem: VBusItem { id: levelItem; bind: Utils.path(bindPrefix, "/Level"); decimals: 0; unit: "%" }
 	property VBusItem fluidTypeItem: VBusItem { id: fluidTypeItem; bind: Utils.path(bindPrefix, "/FluidType") }
