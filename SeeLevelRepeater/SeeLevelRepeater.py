@@ -74,7 +74,7 @@ ProductName = 'SeeLevel Tank %d Repeater'
 # it is marked as disconnected so the GUI can alert the user that
 # the level should not be trusted
 
-RepeaterTimeoutInSeconds = 4.0 #############################
+RepeaterTimeoutInSeconds = 8.0
 
 # the update loop in the Repeater only manages timeouts so runs infrequently
 RepeaterTimerPeriodInSeconds = 1.0
