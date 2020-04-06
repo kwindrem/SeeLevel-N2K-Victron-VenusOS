@@ -23,6 +23,7 @@ To avoid screen clutter, SeeLevelRepeater holds off creating dBus Repeater servi
 While not tested with other tank sensors, SeeLevelRepeater should work well with them as long as the TANKS display doesn't get too crowded.
 
 Innitially, I was told that SeeLevel reports one tank approximately every 1-2 seconds. A complete scan of all tanks takes up to 3-8 seconds. However I discovered tanks can be reported much more rapidly. Too fast actually for my original design, so it's been rewritten to use a dBus signal handler to process each tank (aka /FluidType) from the SeeLevel dBus object.
+The latest change added a second signal handler for /Level changes.
 
 The GUI also needs changes in order to hide the SeeLevel tank information. The files are OverviewMobile.qml and TileTank.qml 
 
