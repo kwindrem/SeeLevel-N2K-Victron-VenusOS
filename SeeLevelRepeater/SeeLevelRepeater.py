@@ -436,7 +436,7 @@ def main():
 # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
 	DBusGMainLoop(set_as_default=True)
 
-        logging.info (">>>>>>>>>>>>>>>> SeeLevel Repeater Starging <<<<<<<<<<<<<<<<")
+        logging.info (">>>>>>>>>>>>>>>> SeeLevel Repeater Starting <<<<<<<<<<<<<<<<")
 
 # install a signal handler for /FluidType and /Level
 	TheBus = dbus.SystemBus()
