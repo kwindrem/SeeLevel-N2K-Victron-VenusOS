@@ -54,6 +54,7 @@ import time
 # add the path to our own packages for import
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../ext/velib_python'))
 from vedbus import VeDbusService
+from settingsdevice import SettingsDevice
 
 # SeeLevelServiceName is the name of the SeeLevel dBus service we need to separate
 # the name is determined by examining the system once the SeeLevel N2K sensor system is attached
@@ -187,13 +188,20 @@ class Repeater:
     def _createDbusRepeaterService (self):
 
 	if self.RepeaterService != None:
-		return True
+		return
 
 # create a unique service name that puts tanks in the desired order (see note at top of this module)
 	self.ServiceName = RepeaterServiceName % self.Tank
 
 # updated version of VeDbusService (in ext directory) -- see https://github.com/victronenergy/dbus-digitalinputs for new imports
 	self.RepeaterService = VeDbusService (self.ServiceName, bus = self.DbusBus)
+
+# make custom name non-volatile
+        path = '/Settings/Devices/TankRepeater%d' % self.Tank
+
+        SETTINGS = { 'customname': [path + '/CustomName', '', 0, 0] }
+
+        self.settings = SettingsDevice(self.DbusBus, SETTINGS, self.setting_changed)
 
 # Create the objects
 
@@ -215,9 +223,29 @@ class Repeater:
 	self.RepeaterService.add_path ('/Capacity', 0, writeable = True, onchangecallback = self._handlechangedvalue)
 	self.RepeaterService.add_path ('/Remaining', 0, writeable = True, onchangecallback = self._handlechangedvalue)
 
+	self.RepeaterService.add_path ('/CustomName', self.get_customname(), writeable = True, onchangecallback = self.customname_changed)
+
 	self.TimeoutCount = 0;
 
-	return True
+	return
+
+
+    def get_customname(self):
+        return self.settings['customname']
+            
+    def set_customname (self, val):
+	self.settings['customname'] = val
+
+    def setting_changed (self, name, old, new):
+        if name == 'customname':
+	    self.RepeaterService['/CustomName'] = new
+	return
+
+    def customname_changed (self, path, val):
+        self.set_customname (val)
+        return True
+
+
 
 # methods called from the SeeLevel processing to update repeater values
 # the first call to any of these methods creates the service for this Repeater instance
