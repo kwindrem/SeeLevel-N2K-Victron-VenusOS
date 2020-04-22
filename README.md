@@ -54,9 +54,7 @@ Note: The SeeLevel service name was determined by monitoring an active system wi
 
 SeeLevelServiceName in SeeLevelRepeater.py
 
-SeeLevelServiceName in SimulateSeeLeve.py
-
-SeeLevelServiceName in OverviewMobile.qml
+seeLevelServiceName in OverviewMobile.qml
 
 SeeLevelRepeater must be set up to run at system boot. The Venus service starter provides a simple mechanism: simply create a symbolic link to the actual code. 
 
