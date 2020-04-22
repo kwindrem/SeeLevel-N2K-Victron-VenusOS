@@ -40,6 +40,8 @@ GUI Changes:
 
 5) Previous implementation of the TANKS display blinked some information. The blinking has been removed.
 
+6) Displays custom tank names
+
 
 Installation:
 
