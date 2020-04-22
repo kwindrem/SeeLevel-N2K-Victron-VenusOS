@@ -14,6 +14,7 @@ import "utils.js" as Utils
 // however the NEMA2000 tank driver in Venus filters out these values so there is no way to detect sensor errors
 // use the SeeLevel display for troubleshooting
 // removed pump tests -- not used
+// Added custom tank name
 
 // The default Tile is not used. It is replicated here so that we can squeeze things to save vertical space
 // the squeeze is triggered by a height of less than 50 (more than 4 tanks)
@@ -28,10 +29,12 @@ Rectangle
 
 	property VBusItem levelItem: VBusItem { id: levelItem; bind: Utils.path(bindPrefix, "/Level"); decimals: 0; unit: "%" }
 	property VBusItem fluidTypeItem: VBusItem { id: fluidTypeItem; bind: Utils.path(bindPrefix, "/FluidType") }
-	property VBusItem connectedItem: VBusItem { id: connectedItem; bind: Utils.path(bindPrefix, "/Connected") }
+    property VBusItem connectedItem: VBusItem { id: connectedItem; bind: Utils.path(bindPrefix, "/Connected") }
+    property VBusItem nameItem: VBusItem { id: nameItem; bind: Utils.path(bindPrefix, "/CustomName") }
 	property alias valueBarColor: valueBar.color
 	property alias level: levelItem.value
 	property alias tank: fluidTypeItem.value
+
 // full warning for waste water and black water tanks
 	property int fullWarningLevel: ([2, 5].indexOf(tank) > -1) ? 80 : 101
 // empty warning for other tank types
@@ -53,7 +56,7 @@ Rectangle
 	{
 		id: titleField
 		font.pixelSize: squeeze ? 12 : 13
-		text: fluidTypeItem.valid ? fluidTypes[tank] : "TANK ?"
+		text: nameItem.valid && nameItem.value != '' ? nameItem.value : (fluidTypeItem.valid ? fluidTypes[tank] : "TANK ?")
 		color: "white"
 		anchors
 		{
