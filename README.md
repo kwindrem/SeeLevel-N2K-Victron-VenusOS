@@ -1,4 +1,8 @@
 # SeeLevel-N2K-Victron-VenusOS
+
+This enhancment works on 2.33 and 2.42-2.60 (as of release candidate ~14 at least so far).
+The GUI files are different for 2.33 and are in a separate directory.
+
 Allows connection of a Garnet SeeLevel NMEA2000 tank sensor system to Victron Venus OS (e.g, Color Control GX) controller
 
 This software will allow the SeeLevel NMEA2000 tank sensor system to be used with
