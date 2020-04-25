@@ -7,10 +7,12 @@
 # To avoid this, individual dBus "repeater' services for each tank are created
 # data for each tank is extracted from the SeeLevel dBus service and published to a separate repeater service
 # 
-# This module handles all 6 defined tanks. The SeeLevel N2K sensor system supports 
-# at most 3 tanks (1 = fresh, 2 = gray, 5 = black)
+# This module handles all 6 defined tanks. 
+# The SeeLevel N2K sensor system supports at most 3 tanks (1 = fresh, 2 = gray, 5 = black)
+# Other N2K systems may report more and this repeater should be able to handle them as long as
+# the tank number is unique
 
-# Modifications to OverviewMobile.qml in the GUI is needed to hide the SeeLevel dBus object that rotates between tank data
+# Modifications to OverviewMobile.qml in the GUI arr needed to hide the SeeLevel dBus object that rotates between tank data
 # Modificaitons to TileTank.qml have also been made to:
 #  alert the operatortor of loss of communciaitons with SeeLevel tank
 #  display custom tank names
@@ -20,17 +22,17 @@
 # The service daemon insures this repeater module runs at startup and restarts it should it crash 
 # To run this module, a link to the SeeLevelRepeater directory is created in the /service directory
 
-# The Repeater services are created only after data is received from SeeLevel for the related tank
+# The Repeater dBus services are created only after data is received from SeeLevel for the related tank
 # to GUI clutter
 
 # A timeout mechanism control's the repeater's /Connected flag to indicate if the Repeater service is active or not
-# when SeeLevel stops reporting data for a specific tank, it's /Connected flag will eventually be cleared by this timeout mechanism
-# The GUI (TileTank) then tests /Connected to hide stale information from the Tanks column
+# when SeeLevel stops reporting data for a specific tank, The repeater's /Connected flag will eventually be cleared by this timeout mechanism
+# The GUI (TileTank) then tests /Connected to hide report "No Response" in the Tanks column
 
 # SeeLevel sends /FluidType, /Level and /Capacity
 # /FluidType is enumerated consistently with other Victron tanks
 # /Level is in percentage (100 = full)
-# /Level is used to report a sensor error, however the NMEA2000 tank driver truncates these values to 0-100%
+# /Level is used to report a sensor error, however the Venus NMEA2000 tank driver limits these values to 0-100%
 # so there is no way to display a sensor error (such as an open in the wiring)
 # SeeLevel reports capacity in liters * 10 and the tank driver converts this to cubic meters used elsewhere in the Venus code
 # /Remaining is calculated in the Repeater
@@ -46,7 +48,7 @@
 # but processing is deferred for later when the chance is best that they represent a stable type/level pair.
 # Since /FluidType changes with every new message from SeeLevel, 
 # that signal is used as the trigger for processing the LAST known /FluidType and /Level values.
-# A background polling task also collects information in the absence of signals.
+# A background task performe the actual dBus service updates and also collects information in the absence of signals.
 # /Capacity changes infrequently, so it is handled in the polling task only (no signal handler).
 # The signal handlers are called from another thread/process so the amount of time spent in these routines is kept to a minimum.
 
