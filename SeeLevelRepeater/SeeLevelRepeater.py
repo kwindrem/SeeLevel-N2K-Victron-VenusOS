@@ -12,6 +12,8 @@
 # Other N2K systems may report more and this repeater should be able to handle them as long as
 # the tank number is unique
 
+# Limitation: Only one repeater program is permitted since a second one would attemt to create duplicate dBus services
+
 # Modifications to OverviewMobile.qml in the GUI arr needed to hide the SeeLevel dBus object that rotates between tank data
 # Modificaitons to TileTank.qml have also been made to:
 #  alert the operatortor of loss of communciaitons with SeeLevel tank
@@ -40,16 +42,15 @@
 # SeeLevel reports information for all tanks about every 3-4 seconds
 # However, it can get into a mode where info for all tanks is sent very quickly, then no activity for ~ 3 seconds
 # Polling for changes can miss data for a specific tank which makes it appear that the tank is not being reported (timeout)
-# For this reason, PropertiesChanged signal handlers for /FluidType and /Level are used to collect tank info
-# But this also is tricky since a signal for a level change may not be issued for every tank.
+# For this reason, PropertiesChanged signal handlers for /FluidType, /Level and /Capacity are used to collect tank info
+# But this also is tricky since a signal for a level or capacity change may not be issued for every tank.
 # For example, if all tanks are empty, the level signal handler is never called! 
 # The same would be true for /FluidLevel if there was only one tank.
-# The signal handlers for /FluidType and /Level store the values received,
-# but processing is deferred for later when the chance is best that they represent a stable type/level pair.
-# Since /FluidType changes with every new message from SeeLevel, 
-# that signal is used as the trigger for processing the LAST known /FluidType and /Level values.
-# A background task performe the actual dBus service updates and also collects information in the absence of signals.
-# /Capacity changes infrequently, so it is handled in the polling task only (no signal handler).
+# The signal handlers for /FluidType, /Level and /Capacity store the values received.
+# On the next /FluidType signal, the combination of /FluidType, /Level and /Capacity previuosly stored are consistent.
+# Those values are sent to the appropriate repeater which stores the values for later.
+# The repeater's background task validates values, creates the dBus service if necessary then updates the dBus service witb new values.
+# The background task also polls for SeeLevel information to be used in the absence of signals.
 # The signal handlers are called from another thread/process so the amount of time spent in these routines is kept to a minimum.
 
 import gobject
@@ -279,30 +280,17 @@ class Repeater:
 	return True
 
 
-# methods called from the SeeLevel processing to update repeater values
+# method called from the SeeLevel processing to update repeater values
 
     def UpdateRepeater (self, level, capacity):
 
-	self.Level = level
-	self.Capacity = capacity
+	if level != -99:
+		self.Level = level
+	if capacity != -99:
+		self.Capacity = capacity
 	self.UpdateReceived = True
 	return True
  
-    def UpdateLevel (self, level):
-
-	if level != -99:
-		self.Level = level
-		self.UpdateReceived = True
-	return True
-
-    def UpdateCapacity (self, capacity):
-
-	if capacity != -99:
-		self.Capacity = capacity
-		self.UpdateReceived = True
-	return True
- 
-
 
 # CheckSeeLevel is the polling loop to extract SeeLevel information
 # it collects and validates information from SeeLevel and forwards it to the tank repeater objects if for whatever reason
@@ -334,8 +322,10 @@ SeeLevelCapacityObject = None
 SeeLevelUniqueName = ""
 LastTank = -99
 LastLevel = -99
-InitNeeded = True
-StuckLevelCount = 0
+LastCapacity = -99
+SeeLevelDbusOK = False
+NoLevelCount = 0
+NoCapacityCount = 0
 
 # this is the dBus bus (system in this case)
 TheBus = None
@@ -362,10 +352,11 @@ def CheckSeeLevel():
 	global RepeaterList
 	global LastTank
 	global LastLevel
+	global LastCapacity
 	global TheBus
-	global SeeLevelUniqueName
-	global InitNeeded
-	global StuckLevelCount
+	global SeeLevelDbusOK
+	global NoLevelCount
+	global NoCapacityCount
 
 	tank = -99
 	tank2 = -999
@@ -376,13 +367,13 @@ def CheckSeeLevel():
 # innitialize object pointers if not done already
 # dbus exceptions will occur if SeeLevel object doesn't exist (normal)
 # or if the GUI isn't running (a bug?)
-		if InitNeeded:
+		if SeeLevelDbusOK == False:
 			SeeLevelTankObject = TheBus.get_object(SeeLevelServiceName, '/FluidType')
 			SeeLevelFluidLevelObject = TheBus.get_object(SeeLevelServiceName, '/Level')
 			SeeLevelCapacityObject = TheBus.get_object (SeeLevelServiceName, '/Capacity')
 			SeeLevelUniqueName = TheBus.get_name_owner(SeeLevelServiceName)
 			logging.info ("SeeLevel dBus connection setup/restored") 
-			InitNeeded = False
+			SeeLevelDbusOK = True
 	
 # do a background update to the associated repeater
 # signal handlers are the primary update for level unless there is only one tank
@@ -393,11 +384,12 @@ def CheckSeeLevel():
 		tank2 = SeeLevelTankObject.GetValue()
 
 	except dbus.DBusException:
-		if InitNeeded == False:
-			logging.warning ("No response from SeeLevel after it had been resonding") 
+		if SeeLevelDbusOK == True:
+			logging.warning ("No response from SeeLevel") 
 			LastTank = -99
-			StuckLevelCount = 0
-			InitNeeded = True
+			NoLevelCount = 0
+			NoCapacityCount = 0
+			SeeLevelDbusOK = False
 
 
 # update the repeater's level and capacity values from the poll
@@ -405,16 +397,25 @@ def CheckSeeLevel():
 	if tank >= 0 and tank < len(RepeaterList) and tank == tank2:
 		RepeaterList [tank].UpdateRepeater (level, capacity)
 
-# if level change signals are not being received but tank number signals ARE being received
+# if level signals are not being received but tank number signals ARE being received
 # the level of all tanks is probalby the same, so jam a polled value into LastLevel
 # wait 10 passes before jaming value to give signals a chance to be received
 	if (LastLevel == -99 and LastTank != -99 and level != -99):
-		StuckLevelCount += 1					
-		if StuckLevelCount >= 10:
+		NoLevelCount += 1					
+		if NoLevelCount > 10:
 			LastLevel = level
-			logging.info ("No /Level signals have been received - setting LastLevel from polled data") 
+			logging.info ("No Level signals have been received - using polled data") 
 	else:
-		StuckLevelCount = 0
+		NoLevelCount = 0
+
+# ditto for capacity
+	if (LastCapacity == -99 and LastTank != -99 and capacity != -99):
+		NoCapacityCount += 1					
+		if NoCapacityCount > 10:
+			LastCapacity = capacity
+			logging.info ("No Capacity signals have been received - using polled data") 
+	else:
+		NoCapacityCount = 0
 
 	return True
 
@@ -426,19 +427,27 @@ def FluidTypeHandler (changes, sender):
 	global SeeLevelUniqueName
 	global LastTank
 	global LastLevel
+	global LastCapacity
+	global SeeLevelDbusOK
 
 # ignore signal if it's not from the SeeLevel service
-	if sender != SeeLevelUniqueName:
+	if SeeLevelDbusOK == False or sender != SeeLevelUniqueName:
 		return
 
+# test value as text to identify an invaild value before extracting the actual value
+# (getting value fails with a dBus exception if SeeLevel service isn't responding)
+# ignore if text is null
+
+	if changes.get ("Text") == "":
+		return
 	tank = int (changes.get ("Value"))
 
-# Update the repeater based on PREVIOUS tank and level before saving the new tank value
+# Update the repeater based on PREVIOUS tank, level and capacity before saving the current tank for next call
 # (level values may not change between tanks)
 # range check tank and level before processing
 # wait until CheckSeeLevel has actually created the reperter service
 	if LastTank >= 0 and LastTank < len(RepeaterList) and LastLevel != -99 and RepeaterList [LastTank] != None:
-		RepeaterList [LastTank].UpdateLevel (LastLevel)
+		RepeaterList [LastTank].UpdateRepeater (LastLevel, LastCapacity)
 
 # save new fluid type for processing on next call to this handler
 	LastTank = tank
@@ -450,13 +459,36 @@ def FluidLevelHandler (changes, sender):
 
 	global SeeLevelUniqueName
 	global LastLevel
+	global SeeLevelDbusOK
 
 # ignore signal if it's not from the SeeLevel service
-	if sender != SeeLevelUniqueName:
+	if SeeLevelDbusOK == False or sender != SeeLevelUniqueName:
 		return
 
-# save fluid level for processing during next call of FluidTypeHandler
-	LastLevel = int (changes.get ("Value"))
+# save level for processing during next call of FluidTypeHandler
+# test value as text to identify an invaild value before extracting the actual value
+	if changes.get ("Text") == "":
+		return
+	LastLevel = float (changes.get ("Value"))
+
+	return
+
+
+def FluidCapacityHandler (changes, sender):
+
+	global SeeLevelUniqueName
+	global LastCapacity
+	global SeeLevelDbusOK
+
+# ignore signal if it's not from the SeeLevel service
+	if SeeLevelDbusOK == False or sender != SeeLevelUniqueName:
+		return
+
+# save capacity for processing during next call of FluidTypeHandler
+# test value as text to identify an invaild value before extracting the actual value
+	if changes.get ("Text") == "":
+		return
+	LastCapacity = float (changes.get ("Value"))
 
 	return
 
@@ -488,6 +520,9 @@ def main():
                 dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged',
 		sender_keyword="sender")
 	TheBus.add_signal_receiver (FluidLevelHandler, path = "/Level",
+                dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged',
+		sender_keyword="sender")
+	TheBus.add_signal_receiver (FluidCapacityHandler, path = "/Capacity",
                 dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged',
 		sender_keyword="sender")
 
