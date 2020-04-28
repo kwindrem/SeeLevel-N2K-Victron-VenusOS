@@ -2,272 +2,334 @@ import QtQuick 1.1
 import com.victron.velib 1.0
 import "utils.js" as Utils
 
-// changes to handle SeeLevel NMEA2000 tank sensor:
-// Ignore over the real SeeLevel dBus service because it's information changes
+// Enhancements to OverviewMobile screen
+// This version supports Venus versions 2.4 and 2.5
+// Removed logo and added AC INPUT and SYSTEM tiles originally displayed on other overviews
+// Added voltage, current and frequency to AC INPUT and AC LOADS tiles
+// Rearranged tiles to match a left to right signal flow : sources on left, loads on right
+// Standardized "info" tile sizes to 1 or 1.5 wide x 1 or 2 high
+// infoArea defines usable space for info tiles and all tiles are a child of infoArea
+// (makes repositioning easier than when they were in separate column objects)
+// Large text for main paremeter in each tile has been reduced in size to allow more parameters without
+// expanding tile height (30 to 22)
+// merged SYSTEM and STATUS tiles
+// removed speed from STATUS to reduce tile height
+// hide "reason" text if it's blank to save space
+// changed clock to 12-hour format
+// Capitialized battery state: "Idle", "Charging", "Discharging"
+// errors and notificaitons in SYSTEM/STATUS tile may push clock off bottom of tile
+// Tile content for items that are not present are made invisible - tile remains in place
+// that is  no height adjustments when a tile provides no information
+// Adjust button widths so that pump button fits within tank column
+// Hide pump button when not enabled giving more room for tanks
 
-// Search for //////// SeeLevel to find sections to modify
+// Includes changes to handle SeeLevel NMEA2000 tank sensor:
+// Ignore the real SeeLevel dBus service because it's information changes
+// Changes in TileText.qml are also required for SeeLevel
 
-// Also, see changes in TileText.qml
-
-// When a tank is empty or nearly so, the red bar graph can't be seen, so the tank fullness text now turns red also
+// Search for //////// to find changes
 
 OverviewPage {
-	id: root
+    title: qsTr("Mobile")
+    id: root
 
-//////// SeeLevel -- add this, may also need to be customized to a specific system
-// The name of the SeeLevel dBus service
-// may need to be changed on each system
-    property string seeLevelServiceName: "com.victronenergy.tank.socketcan_can0_vi0_uc855"
-//////// SeeLevel -- end add this
-
-	property variant sys: theSystem
-	property string settingsBindPreffix: "com.victronenergy.settings"
-    //////// SeeLevel -- remove this
-//	property string pumpBindPreffix: "com.victronenergy.pump.startstop0"
-    //////// SeeLevel -- end add this
-	property variant activeNotifications: NotificationCenter.notifications.filter(
+    property variant sys: theSystem
+    property string settingsBindPreffix: "com.victronenergy.settings"
+    property string pumpBindPreffix: "com.victronenergy.pump.startstop0"
+    property variant activeNotifications: NotificationCenter.notifications.filter(
 											  function isActive(obj) { return obj.active} )
-	property string noAdjustableByDmc: qsTr("This setting is disabled when a Digital Multi Control " +
+    property string noAdjustableByDmc: qsTr("This setting is disabled when a Digital Multi Control " +
 											"is connected. If it was recently disconnected execute " +
 											"\"Redetect system\" that is avalible on the inverter menu page.")
-	property string noAdjustableByBms: qsTr("This setting is disabled when a VE.Bus BMS " +
+    property string noAdjustableByBms: qsTr("This setting is disabled when a VE.Bus BMS " +
 											"is connected. If it was recently disconnected execute " +
 											"\"Redetect system\" that is avalible on the inverter menu page.")
-	property string noAdjustableTextByConfig: qsTr("This setting is disabled. " +
+    property string noAdjustableTextByConfig: qsTr("This setting is disabled. " +
 										   "Possible reasons are \"Overruled by remote\" is not enabled or " +
 										   "an assistant is preventing the adjustment. Please, check " +
 										   "the inverter configuration with VEConfigure.")
-	property int numberOfMultis: 0
-	property string vebusPrefix: ""
+    property int numberOfMultis: 0
+    property string vebusPrefix: ""
+    
+    // Keeps track of which button on the bottom row is active
+    property int buttonIndex: 0
 
-	// Keeps track of which button on the bottom row is active
-	property int buttonIndex: 0
+//////// add for system state
+    property bool hasSystemState: _systemState.valid
 
-	title: qsTr("Mobile")
+//////// add for SYSTEM tile and voltage, power and frequency values
+    property string systemPrefix: "com.victronenergy.system"
+    property VBusItem _systemState: VBusItem { bind: Utils.path(systemPrefix, "/SystemState/State") }
+//////// add for PV CHARGER voltage and current
+    property string pvChargerPrefix: ""
+    property int numberOfPvChargers: 0
+
+ 
+ //////// standard tile sizes
+ //////// positions are left, center, right and top, center, bottom of infoArea
+    property int infoTilesCount: 3
+    property int buttonRowHeight: 45    // must match TileSpinBox height used on AC CURRENT LIMIT
+    property int tankWidth: 130
+
+    property int infoTileHeight: Math.ceil((height - buttonRowHeight) / infoTilesCount)
+    property int infoTile2High: (infoTileHeight * 2) - 1
+    
+    property int infoWidth: width - tankWidth
+    property int infoWidth3Column: infoWidth / 3
+    property int infoWidth2Column: infoWidth / 2
 
 	Component.onCompleted: discoverTanks()
 
-	ListView {
-		id: pwColumn
+    ListView {
+        id: infoArea
+        interactive: false // static tiles
 
-		property int tilesCount: solarTile.visible || dcSystem.visible ? 3 : 2
-		property int tileHeight: Math.ceil(height / tilesCount)
-		interactive: false // static tiles
-
-		width: 136
-		anchors {
-			left: parent.left
+        anchors {
+            left: parent.left
+            right: tanksColum.left
 			top: parent.top;
 			bottom: acModeButton.top;
-		}
+        }
 
-		model: VisualItemModel {
-			Tile {
-				width: pwColumn.width
-				height: visible ? pwColumn.tileHeight : 0
-				title: qsTr("AC INPUT")
-				color: "#82acde"
-				visible: !dcSystem.visible || !solarTile.visible
-				values: [
-					TileText {
-						text: sys.acInput.power.uiText
-						font.pixelSize: 30
-					}
+//////// copied SYSTEM from OverviewTiles.qml & combined SYSTEM and STATUS tiles
+        Tile {
+            title: qsTr("STATUS")
+            id: statusTile
+            anchors { left: parent.left; top: parent.top }
+            width: root.infoWidth3Column
+            height: root.infoTile2High
+            color: "#4789d0"
 
-				]
-			}
+            VBusItem{
+                id: systemName
+                bind: Utils.path(settingsBindPreffix, "/Settings/SystemSetup/SystemName")
+            }
 
-			TileAcPower {
-				width: pwColumn.width
-				height: visible ? pwColumn.tileHeight : 0
-				title: qsTr("AC LOADS")
-				color: "#e68e8a"
-				values: [
-					TileText {
-						text: sys.acLoad.power.uiText
-						font.pixelSize: 30
-					}
-				]
-			}
+            Timer {
+                id: wallClock
 
-			Tile {
-				id: solarTile
-				width: pwColumn.width
-				height: visible ? pwColumn.tileHeight : 0
-				title: qsTr("PV CHARGER")
-				color: "#2cc36b"
-				visible  : sys.pvCharger.power.valid
+                running: true
+                repeat: true
+                interval: 1000
+                triggeredOnStart: true
+//////// change time to 12 hour format
+                onTriggered: time = Qt.formatDateTime(new Date(), "h:mm ap")
 
-				values: [
-					TileText {
-						font.pixelSize: 30
-						text: sys.pvCharger.power.uiText
-					}
-				]
-			}
-			Tile {
-				id: dcSystem
-				width: pwColumn.width
-				height: visible ? pwColumn.tileHeight : 0
-				title: qsTr("DC SYSTEM")
-				color: "#16a085"
-				visible  : hasDcSys.value === 1
+                property string time
+            }
+//////// relorder to give priority to errors
+            values: [
+                TileText {
+                    text: systemName.valid && systemName.value !== "" ? systemName.value : sys.systemType.valid ? sys.systemType.value.toUpperCase() : ""
+                    font.pixelSize: 20
+                    wrapMode: Text.WordWrap
+                    width: statusTile.width
+                },
+                TileText {
+                    text: wallClock.time
+                    font.pixelSize: 20
+                },
+//////// spacer to separate Multi mode from system name
+                TileText {
+                    text: " "
+                    font.pixelSize: 4
+                },
+                TileText {
+                    text: qsTr(systemState.text)
 
-				VBusItem {
-					id: hasDcSys
-					bind: Utils.path(settingsBindPreffix, "/Settings/SystemSetup/HasDcSystem")
-				}
+                    SystemState {
+                        id: systemState
+                        bind: hasSystemState?Utils.path(systemPrefix, "/SystemState/State"):Utils.path(sys.vebusPrefix, "/State")
+                    }
+                },
 
-				values: [
-					TileText {
-						font.pixelSize: 30
-						text: sys.dcSystem.power.format(0)
-					},
-					TileText {
-						text: !sys.dcSystem.power.valid ? "---" :
-							  sys.dcSystem.power.value < 0 ? qsTr("to battery") : qsTr("from battery")
-					}
-				]
-			}
-		}
-	}
+//////// combine SystemReason with notifications
+                Marquee {
+                    text:
+                    {
+                        if (activeNotifications.length === 0)
+                            return systemReasonMessage.text
+                        else
+                            return notificationText() + " || " + systemReasonMessage.text
+                    }
+                    width: statusTile.width
+                    interval: 100
+                    SystemReasonMessage {
+                        id: systemReasonMessage
+                    }
+                }
+//////// remove speed to make more room
+            ]
+        } // end Tile STATUS
 
-	Tile {
-		id: logoTile
+        Tile {
+            title: qsTr("BATTERY")
+            id: batteryTile
+            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top }
+            width: root.infoWidth3Column
+            height: root.infoTile2High
 
-		color: "#575748"
-
-		height: 120
-		Image {
-			source: "image://theme/mobile-builder-logo"
-			anchors.centerIn: parent
-		}
-		anchors {
-			left: pwColumn.right
-			right: tanksColum.left
-			top: parent.top
-		}
-	}
-
-	Tile {
-		id: batteryTile
-		height: 112
-		title: qsTr("BATTERY")
-		anchors {
-			left: pwColumn.right
-			right: stateTile.left
-			top: logoTile.bottom
-			bottom: acModeButton.top
-		}
-
-		values: [
-			TileText {
-				text: sys.battery.soc.absFormat(0)
-				font.pixelSize: 30
-				height: 32
-			},
-			TileText {
-				text: {
-					if (!sys.battery.state.valid)
-						return "---"
-					switch(sys.battery.state.value) {
-						case sys.batteryStateIdle: return qsTr("idle")
-						case sys.batteryStateCharging : return qsTr("charging")
-						case sys.batteryStateDischarging : return qsTr("discharging")
-					}
-				}
-			},
-			TileText {
-				text: sys.battery.power.absFormat(0)
-			},
-			TileText {
-				text: sys.battery.voltage.format(1) + "   " + sys.battery.current.format(1)
-			}
-		]
-	}
+            values: [
+                TileText {
+                    text: sys.battery.soc.absFormat(0)
+                    font.pixelSize: 22
+//////// remove height (for consistency with other tiles)
+                },
+                TileText {
+                    text: {
+                        if (!sys.battery.state.valid)
+                            return "---"
+                        switch(sys.battery.state.value) {
+//////// change - capitalized words look better
+                            case sys.batteryStateIdle: return qsTr("Idle")
+                            case sys.batteryStateCharging : return qsTr("Charging")
+                            case sys.batteryStateDischarging : return qsTr("Discharging")
+                            }
+                        }
+                    },
+                    TileText {
+//////// change to show negative for battery drain
+                        text: sys.battery.power.text
+                    },
+                    TileText {
+                        text: sys.battery.voltage.format(1) + "   " + sys.battery.current.format(1)
+                    },
+                    TileText {
+                        text: qsTr("Remaining:")
+                    },
+                    TileText {
+                        text: {
+                        if (timeToGo.valid)
+                            return Utils.secondsToString(timeToGo.value)
+                        else
+                            return "> 10d"
+                        }
+                        
+                        VBusItem {
+                            id: timeToGo
+                            bind: Utils.path("com.victronenergy.system","/Dc/Battery/TimeToGo")
+                        }
+                    }
+                ]
+            } // end Tile BATTERY
 
 	Tile {
-		id: stateTile
+	    title: qsTr("DC SYSTEM")
+	    id: dcSystem
+	    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+	    width: root.infoWidth3Column
+	    height: root.infoTileHeight
+	    color: "#16a085"
 
-		width: 104
-		title: qsTr("STATUS")
-		color: "#4789d0"
+	    VBusItem {
+		id: hasDcSys
+		bind: Utils.path(settingsBindPreffix, "/Settings/SystemSetup/HasDcSystem")
+	    }
 
-		anchors {
-			right: tanksColum.left
-			top: logoTile.bottom
-			bottom: acModeButton.top
-		}
+	    values: [
+		TileText {
+		    font.pixelSize: 22
+	    text: hasDcSys.value === 1 ? sys.dcSystem.power.format(0) : "none"
+		},
+		TileText {
+                    text: !sys.dcSystem.power.valid ? "---" :
+                          sys.dcSystem.power.value < 0 ? qsTr("to battery") : qsTr("from battery")
+                    visible: hasDcSys.value === 1
+                }
+            ]
+	} // end Tile DC SYSTEM
 
-		Timer {
-			id: wallClock
+	Tile {
+	    id: solarTile
+	    title: qsTr("PV CHARGER")
+	    anchors { right: parent.right; top: parent.top }
+	    width: root.infoWidth3Column
+	    height: root.infoTileHeight
+	    color: "#2cc36b"
+//////// add voltage and current
+	    VBusItem { id: pvCurrent; bind: Utils.path(pvChargerPrefix, "/Pv/I") }
+	    VBusItem { id: pvVoltage;  bind: Utils.path(pvChargerPrefix, "/Pv/V") }
+	    values: [
+		TileText {
+                    font.pixelSize: 22
+                    text: sys.pvCharger.power.valid ? sys.pvCharger.power.uiText : "none"
+		},
+//////// add voltage and current
+		TileText {
+                    text: numberOfPvChargers === 1 ? pvVoltage.text + " " + pvCurrent.text : ""
+                    visible: sys.pvCharger.power.valid
+                }
+            ]
+	} // end Tile PV CHARGER
 
-			running: true
-			repeat: true
-			interval: 1000
-			triggeredOnStart: true
-			onTriggered: time = Qt.formatDateTime(new Date(), "hh:mm")
+//////// add AC INPUT tile
+        Tile {
+            title: qsTr("AC INPUT")
+            id: acInputTile
+            anchors { left: parent.left; bottom: parent.bottom }
+            width: root.infoWidth2Column
+            height: root.infoTileHeight
+            color: "#82acde"
+//////// add voltage and current
+            VBusItem { id: inVoltage; bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/L1/V") }
+            VBusItem { id: inCurrent; bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/L1/I") }
+            VBusItem { id: inFrequency; bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/L1/F") }
+            values: [
+                TileText {
+                    text: sys.acInput.power.uiText
+                    font.pixelSize: 22
+                },
+//////// add voltage and current
+                TileText {
+                    text: inVoltage.text + "  " + inCurrent.text + "  " + inFrequency.text
+                }
+            ]
+        }
 
-			property string time
-		}
+        Tile {
+            title: qsTr("AC LOADS")
+            id: acLoadsTile
+            anchors { right: parent.right; bottom: parent.bottom}
+            width: root.infoWidth2Column
+            height: root.infoTileHeight
+            color: "#e68e8a"
+//////// add voltage and current
+            VBusItem { id: outVoltage; bind: Utils.path(vebusPrefix, "/Ac/Out/L1/V") }
+            VBusItem { id: outCurrent; bind: Utils.path(vebusPrefix, "/Ac/Out/L1/I") }
+            VBusItem { id: outFrequency; bind: Utils.path(vebusPrefix, "/Ac/Out/L1/F") }
 
-		values: [
-			TileText {
-				id: systemTile
-				text: wallClock.time
-				font.pixelSize: 30
-			},
-			TileText {
-				text: speed.valid ? getValue() : speed.text
-				visible: speed.valid
+            values: [
+                TileText {
+                    text: sys.acLoad.power.uiText
+                    font.pixelSize: 22
+                },
+//////// add voltage and current
+                TileText {
+                    text: outVoltage.text + "  " + outCurrent.text + "  " + outFrequency.text
+                }
+            ]
+        }
 
-				VBusItem {
-					id: speed
-					bind: Utils.path("com.victronenergy.gps", "/Speed")
-				}
-				VBusItem {
-					id: speedUnit
-					bind: Utils.path(settingsBindPreffix, "/Settings/Gps/SpeedUnit")
-				}
-				function getValue()
-				{
-					if (speedUnit.value === "km/h")
-						return (speed.value * 3.6).toFixed(1) + speedUnit.value
-					if (speedUnit.value === "mph")
-						return (speed.value * 2.236936).toFixed(1) + speedUnit.value
-					if (speedUnit.value === "kt")
-						return (speed.value * (3600/1852)).toFixed(1) + speedUnit.value
-					return speed.value.toFixed(2) + "m/s"
-				}
-			},
-			Marquee {
-				text: notificationText()
-				width: stateTile.width
-				interval: 100
-				fontSize: 13
-			}
-		]
-	}
+    } // end ListView infoArea
 
-	ListView {
-		id: tanksColum
+    ListView {
+        id: tanksColum
 
-		property int tileHeight: Math.ceil(height / Math.max(count, 2))
-		width: 134
-		interactive: false // static tiles
+        property int tankTileHeight: Math.ceil(height / Math.max(count, 2))
+//////// change - group layout parameters in one place
+        width: root.tankWidth
+        interactive: false // static tiles
 
 		model: tanksModel
 		delegate: TileTank {
 			width: tanksColum.width
-			height: tanksColum.tileHeight
-//////// SeeLevel -- remove this
-//			pumpBindPrefix: root.pumpBindPreffix
-//////// SeeLevel -- end add this
+			height: tanksColum.tankTileHeight
+			pumpBindPrefix: root.pumpBindPreffix
 		}
 
 		anchors {
 			top: root.top
-			bottom: acModeButton.top
+			bottom: pumpButton.pumpEnabled ? acModeButton.top : acModeButton.bottom
 			right: root.right
 		}
 
@@ -299,8 +361,10 @@ OverviewPage {
 		}
 
 		Keys.onRightPressed: {
-			if (buttonIndex < 2)
-				buttonIndex++
+            var lastButton = pumpButton.pumpEnabled ? 2 : 1
+            ++buttonIndex
+            if (buttonIndex > lastButton)
+				buttonIndex = lastButton
 
 			event.accepted = true
 		}
@@ -314,6 +378,7 @@ OverviewPage {
 	}
 
 	TileSpinBox {
+        title: qsTr("AC CURRENT LIMIT")
 		id: acCurrentButton
 
 		anchors.bottom: parent.bottom
@@ -322,9 +387,8 @@ OverviewPage {
 		focus: root.active && isCurrentItem
 
 		bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/CurrentLimit")
-		title: qsTr("AC CURRENT LIMIT")
 		color: containsMouse && !editMode ? "#d3d3d3" : "#A8A8A8"
-		width: show ? 160 : 0
+		width: show ? root.infoWidth2Column : 0
 		fontPixelSize: 14
 		unit: "A"
 		readOnly: currentLimitIsAdjustable.value !== 1 || numberOfMultis > 1
@@ -376,8 +440,8 @@ OverviewPage {
 
 		editable: true
 		readOnly: !modeIsAdjustable.valid || modeIsAdjustable.value !== 1 || numberOfMultis > 1
-		width: 160
-		height: 45
+		width: root.infoWidth2Column
+		height: buttonRowHeight
 		color: acModeButtonMouseArea.containsPressed ? "#d3d3d3" : "#A8A8A8"
 		title: qsTr("AC MODE")
 
@@ -497,8 +561,8 @@ OverviewPage {
 		focus: root.active && isCurrentItem
 
 		title: qsTr("PUMP")
-		width: show ? 160 : 0
-		height: 45
+		width: show && pumpEnabled ? root.tankWidth : 0
+		height: buttonRowHeight
 		editable: true
 		readOnly: false
 		color: pumpButtonMouseArea.containsPressed ? "#d3d3d3" : "#A8A8A8"
@@ -598,21 +662,27 @@ OverviewPage {
 	{
 		var name = service.name
 		if (service.type === DBusService.DBUS_SERVICE_TANK) {
-            //////// SeeLevel -- add this
-            // hide the service for the physical sensor system because it shows values for multiple tanks
-                        if (service.name !== seeLevelServiceName) // skip N2K SeeLevel dBus object
-            //////// SeeLevel -- end add this
-
-			tanksModel.append({serviceName: service.name})
+//////// SeeLevel - add to hide the service for the physical sensor
+            var seeLevelServiceName = seeLevelName.valid ? seeLevelName.value : ""
+            if (name !== seeLevelServiceName) // hide N2K SeeLevel dBus object
+//////// SeeLevel - end add
+                tanksModel.append({serviceName: service.name})
 		}
-		if (service.type === DBusService.DBUS_SERVICE_MULTI) {
-			numberOfMultis++
-			if (vebusPrefix === "")
-				vebusPrefix = name;
-		}
+        if (service.type === DBusService.DBUS_SERVICE_MULTI) {
+            numberOfMultis++
+            if (vebusPrefix === "")
+                vebusPrefix = name;
+        }
+//////// add for PV CHARGER voltage and current display
+        if (service.type === DBusService.DBUS_SERVICE_SOLAR_CHARGER) {
+            numberOfPvChargers++
+            if (pvChargerPrefix === "")
+                pvChargerPrefix = name;
+        }
 	}
 
 	// Check available services to find tank sesnsors
+//////// also adds info for Muitls and PV Chargers
 	function discoverTanks()
 	{
 		tanksModel.clear()
@@ -620,16 +690,20 @@ OverviewPage {
 			if (DBusServices.at(i).type === DBusService.DBUS_SERVICE_TANK) {
 				addService(DBusServices.at(i))
 			}
-			if (DBusServices.at(i).type === DBusService.DBUS_SERVICE_MULTI) {
-				addService(DBusServices.at(i))
-			}
+            if (DBusServices.at(i).type === DBusService.DBUS_SERVICE_MULTI) {
+                addService(DBusServices.at(i))
+            }
+//////// add for PV CHARGER voltage and current display
+            if (DBusServices.at(i).type === DBusService.DBUS_SERVICE_SOLAR_CHARGER) {
+                addService(DBusServices.at(i))
+            }
 		}
 	}
 
 	function notificationText()
 	{
 		if (activeNotifications.length === 0)
-			return qsTr("no alarms")
+			return qsTr("")
 
 		var descr = []
 		for (var n = 0; n < activeNotifications.length; n++) {
@@ -647,4 +721,9 @@ OverviewPage {
 
 	VBusItem { id: dmc; bind: Utils.path(vebusPrefix, "/Devices/Dmc/Version") }
 	VBusItem { id: bms; bind: Utils.path(vebusPrefix, "/Devices/Bms/Version") }
+
+//////// SeeLevel - add to hide the service for the physical sensor
+    VBusItem { id: seeLevelName;
+        bind: Utils.path(settingsBindPreffix, "/Settings/Devices/TankRepeater/SeeLevelService") }
+//////// SeeLevel - end add
 }
