@@ -14,12 +14,6 @@ import "utils.js" as Utils
 OverviewPage {
 	id: root
 
-//////// SeeLevel -- add this, may also need to be customized to a specific system
-// The name of the SeeLevel dBus service
-// may need to be changed on each system
-	property string seeLevelServiceName: "com.victronenergy.tank.socketcan_can0_di0_uc855"
-//////// SeeLevel -- end add this
-
 	property variant sys: theSystem
 	property string settingsBindPreffix: "com.victronenergy.settings"
 	property variant activeNotifications: NotificationCenter.notifications.filter(
@@ -596,10 +590,10 @@ OverviewPage {
 		var name = service.name
 		if (service.type === DBusService.DBUS_SERVICE_TANK) {
 
-//////// SeeLevel -- add this
-// hide the service for the physical sensor system because it shows values for multiple tanks 
-			if (service.name !== seeLevelServiceName) // skip N2K SeeLevel dBus object
-//////// SeeLevel -- end add this
+//////// SeeLevel - add this
+            var seeLevelServiceName = seeLevelName.valid ? seeLevelName.value : ""
+            if (service.name !== seeLevelServiceName) // hide N2K SeeLevel dBus object
+//////// SeeLevel - end add this
 				tanksModel.append({serviceName: service.name})
 		}
 		if (service.type === DBusService.DBUS_SERVICE_MULTI) {
@@ -644,4 +638,8 @@ OverviewPage {
 
 	VBusItem { id: dmc; bind: Utils.path(vebusPrefix, "/Devices/Dmc/Version") }
 	VBusItem { id: bms; bind: Utils.path(vebusPrefix, "/Devices/Bms/Version") }
+//////// SeeLevel - add this
+    VBusItem { id: seeLevelName;
+        bind: Utils.path(settingsBindPreffix, "/Settings/Devices/TankRepeater/SeeLevelService") }
+//////// SeeLevel - end add this
 }
