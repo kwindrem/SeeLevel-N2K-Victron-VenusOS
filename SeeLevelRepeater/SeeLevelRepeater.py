@@ -69,9 +69,11 @@ from settingsdevice import SettingsDevice
 
 # SeeLevelServiceName is the name of the SeeLevel dBus service we need to separate
 # the name is determined by examining the system once the SeeLevel N2K sensor system is attached
-# NOTE: MUST BE SET MANUALLY IN THE CODE AFTER ACTUAL SERVICE NAME IS DETERMINED (use dbus-spy)
+# then entering it into /Settings/Devices/TankRepeater/SeeLevelServiceName under settings using dbus-spy
+# NOTE: THISMUST BE SET MANUALLY IN THE CODE AFTER ACTUAL SERVICE NAME IS DETERMINED (use dbus-spy)
 
-SeeLevelServiceName = 'com.victronenergy.tank.socketcan_can0_vi0_uc855'
+#SeeLevelServiceName = 'com.victronenergy.tank.socketcan_can0_vi0_uc855'
+SeeLevelServiceName = ''
 
 # RepeaterServiceName is the name of the dBus service where data is sent
 # instance number is filled in when the service is created
@@ -185,7 +187,7 @@ class Repeater:
 	self.DbusService = VeDbusService (self.ServiceName, bus = self.DbusBus)
 
 # make custom name non-volatile
-        settingsPath = '/Settings/Devices/TankRepeater%d' % self.Tank
+        settingsPath = '/Settings/Devices/TankRepeater/Tank%d' % self.Tank
 
         SETTINGS = { 'customname': [settingsPath + '/CustomName', '', 0, 0] }
 
@@ -326,6 +328,7 @@ LastCapacity = -99
 SeeLevelDbusOK = False
 NoLevelCount = 0
 NoCapacityCount = 0
+AlreadyLogged = False
 
 # this is the dBus bus (system in this case)
 TheBus = None
@@ -342,7 +345,7 @@ RepeaterList =  [None,  None, None, None, None, None ]
 
 def CheckSeeLevel():
 
-	global SeeLevelServiceName		# defined at top of the module for ease of maintanence
+	global SeeLevelServiceName		# read from non-volatile storage
 
 	global SeeLevelTankObject
 	global SeeLevelFluidLevelObject
@@ -357,23 +360,38 @@ def CheckSeeLevel():
 	global SeeLevelDbusOK
 	global NoLevelCount
 	global NoCapacityCount
+	global AlreadyLogged
 
 	tank = -99
 	tank2 = -999
 	level = -99
 	capacity = -99
 
+# check for changes of the SeeLevel dBus service name
+# and cause a refresh of connections if so
+
+	lastSeeLevelServiceName = SeeLevelServiceName
+	SeeLevelServiceName = GetSeeLevelName ()
+	if SeeLevelServiceName != lastSeeLevelServiceName:
+		SeeLevelDbusOK = False
+		AlreadyLogged = False
+
+	if SeeLevelServiceName == '':
+		SeeLevelDbusOK = False
+		return True
+
 	try:
 # innitialize object pointers if not done already
 # dbus exceptions will occur if SeeLevel object doesn't exist (normal)
-# or if the GUI isn't running (a bug?)
+# or if the GUI isn't running (CanBus runs from GUI thread)
 		if SeeLevelDbusOK == False:
 			SeeLevelTankObject = TheBus.get_object(SeeLevelServiceName, '/FluidType')
 			SeeLevelFluidLevelObject = TheBus.get_object(SeeLevelServiceName, '/Level')
 			SeeLevelCapacityObject = TheBus.get_object (SeeLevelServiceName, '/Capacity')
 			SeeLevelUniqueName = TheBus.get_name_owner(SeeLevelServiceName)
-			logging.info ("SeeLevel dBus connection setup/restored") 
+			logging.info ("SeeLevel dBus connection established at:%s:" % SeeLevelServiceName) 
 			SeeLevelDbusOK = True
+			AlreadyLogged = False
 	
 # do a background update to the associated repeater
 # signal handlers are the primary update for level unless there is only one tank
@@ -384,12 +402,13 @@ def CheckSeeLevel():
 		tank2 = SeeLevelTankObject.GetValue()
 
 	except dbus.DBusException:
-		if SeeLevelDbusOK == True:
-			logging.warning ("No response from SeeLevel") 
-			LastTank = -99
-			NoLevelCount = 0
-			NoCapacityCount = 0
-			SeeLevelDbusOK = False
+		LastTank = -99
+		NoLevelCount = 0
+		NoCapacityCount = 0
+		SeeLevelDbusOK = False
+		if AlreadyLogged == False:
+			logging.warning ("No response from SeeLevel at:%s:", SeeLevelServiceName)
+			AlreadyLogged = True
 
 
 # update the repeater's level and capacity values from the poll
@@ -492,13 +511,24 @@ def FluidCapacityHandler (changes, sender):
 
 	return
 
+#declare a global for non-volatile settings
+NvSettings = ''
 
+
+def GetSeeLevelName ():
+	global NvSettings
+        return NvSettings['seeLevelName']
+
+def SeeLevelNameChanged (name, old, new):
+	return
 
 def main():
 
 	from dbus.mainloop.glib import DBusGMainLoop
 
 	global TheBus
+	global SeeLevelServiceChanged
+	global NvSettings
 
 # set logging level to include info level entries
 	logging.basicConfig(level=logging.INFO)
@@ -525,6 +555,14 @@ def main():
 	TheBus.add_signal_receiver (FluidCapacityHandler, path = "/Capacity",
                 dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged',
 		sender_keyword="sender")
+
+# create non-volatile setting for SeeLevel dBus service name
+# dbus-spy will fill in that value when SeeLevel is being installed
+
+        SETTINGS = { 'seeLevelName': ['/Settings/Devices/TankRepeater/SeeLevelService', '', 0, 0] }
+
+        NvSettings = SettingsDevice(TheBus, SETTINGS, SeeLevelNameChanged)
+
 
 # periodically look for SeeLevel service
 	gobject.timeout_add(SeeLevelScanPeriod, CheckSeeLevel)
