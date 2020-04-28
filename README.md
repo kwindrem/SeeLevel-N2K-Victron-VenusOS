@@ -52,17 +52,27 @@ Installation:
 You will need root access to the Venus device. Instructions can be found here:
 https://www.victronenergy.com/live/ccgx:root_access
 
-Note: The SeeLevel service name was determined by monitoring an active system with dbus-spy. This name WILL be different on each system. So the name needs to be changed in the code. If dbus-spy shows a SeeLevel service but NOT any Repeater services, check the name. It is currently coded as:
+Note: The SeeLevel service name was determined by monitoring an active system with dbus-spy. This name WILL be different on each system. 
+The name is stored in non-volatile settings, accessible via dbus-spy.
+The settings service is: com.victronenergy.settings
+The value to change is: /Settings/Devices/TankRepeater/SeeLevelService
+The easiest way to set the value is to copy the service name from the main dbus-spy screen. It will look something like:
 
-'com.victronenergy.tank.socketcan_can0_di0_uc855' in three places that will need to be changed:
+com.victronenergy.tank.socketcan_can0_di0_uc855
 
-SeeLevelServiceName in SeeLevelRepeater.py
+After copying the string, enter the settings service and scroll down to Settings/Devices/TankRepeater/SeeLevelService
 
-seeLevelServiceName in OverviewMobile.qml
+press enter, then paste the clipbord and enter again
+
+You may need to exit the OverviewMobile screen, then come back to it in order for the tanks column to populate properly.
+
+Note, you will NOT see Settings/Devices/TankRepeater/SeeLevelService if you have not already run SeeLevelRepeater at least once. After that, the setting persists through reboots and system updates.
+
+I tried to automate this but there isn't enough information provided by SeeLevel to uniquely identify it relative to other CanBus tank sensors. At least this is better than editing the code as it was in earlier versions.
 
 SeeLevelRepeater must be set up to run at system boot. The Venus service starter provides a simple mechanism: simply create a symbolic link to the actual code. 
 
-The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! All folders and files in this GitHub should be copied to /data, preserving the file hierarchy. It may be easier to download the included .zip file, unzip that to a directory on your host then copy the entire directory to the Venus device.
+The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! All folders and files in this GitHub should be copied to /data, preserving the file hierarchy.
 
 The unix command 'scp' can be used from a computer on the same network as the Venus hardware to copy files. 'ssh' can be used to log in and make changes. From Mac OS, these can be issued from Terminal. Not sure about Windows.
 
@@ -88,7 +98,8 @@ You will need to repeat this after a firmware update.
 cd /opt/victronenergy/gui/qml
 mv OverviewMobile.qml OverviewMobile.qml.old
 mv TileTank.qml TileTank.qml.old
-cp /data/TankRepeater/GuiUpdaetsFor2.33/*.qml .
+cp /data/TankRepeater/GuiUpdaetsForxxx/*.qml .
+xxx is either 2.33 or 2.42-2.60 depending on your system version
 
 Reboot the Venus system:
 
@@ -107,40 +118,19 @@ tail /data/TankRepeater/SeeLevelRepeater/log/main/current
 dbus-spy can also be used to examine dBus services to aid in troubleshooting problems.
 
 
-A SeeLevel simulator is also included with this package.
-It was extremely useful in debutting this code but may also be useful to verify that SeeLevelRepeater.py is installed and running properly. The simulator can be run from the Venus command line:
-
-cd /data/TankRepeater
-./SimulateSeeLevel.py
-
-In this basic form, the simulator will create a virtual SeeLevel dBus service. dbus-spy can be used to poke values into this service to see if they propagate to Repeater services.
-
-The simulator can also emulate the SeeLevel hardware sending out data for 3 tanks:
-
-./SimulateSeeLevel.py simulate
-
-This should result in Fresh Water, Waste Water and Black Water tank information showing up on the GUI
-
-./SimulateSeeLevel.py auto
-
-Will vary the levels for the three tanks so you can watch the displays change in the GUI
-
-Do NOT run the simulator with an actual SeeLevel sensor system connected to the Venus device. The two will conflict as both try to create the same dBus service.
-
-
 Migrating changes to new versions of the system
 
 When Venus software is updated, it may be necessary to migrate these changes into new versions of the QML files. 
 
 Changes in OverviewMobile.qml included in this package has been marked to easily search for the changed areas making it fairly easy to migrate the changes into new versions of the venus system.
 
-Changes to TileTank.qml are extensive. Most likely, you will simply be able to overwrite TileTank.qml after the firmware update. If not, a carefull study of the two versions will be necessary to how best to merge the versions. Many of the changes made to TileTank.qml support display of more than 3-4 tanks and may not be necessary for your system. On the other hand, the changes to support no response and errors from the tank will most likely be necessary.
+Changes to TileTank.qml are extensive. Most likely, you will simply be able to overwrite TileTank.qml after the firmware update. If not, a carefull study of the two versions will be necessary to how best to merge the versions. Many of the changes made to TileTank.qml support display of more than 3-4 tanks and may not be necessary for your system. On the other hand, the changes to support no response and errors from the tank may be desired.
 
 Hardware:
 
-This package relies on an NEMA2000 version of the Garnet SeeLevel repeater. It will not work with the standart or RV-C versions. Garnet's number for this version is 709-K2K NLP.
+This package relies on an NEMA2000 version of the Garnet SeeLevel repeater. It will not work with the standart or RV-C versions. Garnet's number for this version is 709-K2K NLP. It MAY work with other NMEA2000 tank sensor systems that report multiple tanks. 
 
-This version of the senor system uses a propriatary connector for the CAN-bus connection.
+This version of the SeeLevel system uses a propriatary connector for the CAN-bus connection.
 This connector mates with the connector on the back of the SeeLevel control unit: 3M 37104-2165-000 FL 100
 And is available from DigiKey: https://www.digikey.com/product-detail/en/3m/37104-2165-000-FL-100/3M155844-ND/1238214
 
