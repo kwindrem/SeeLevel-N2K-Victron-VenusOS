@@ -1,6 +1,6 @@
 # SeeLevel-N2K-Victron-VenusOS
 
-This enhancment works on 2.33 and 2.42-2.60 (as of release candidate ~16 at least so far).
+This enhancment works on 2.33 and 2.42-2.60 ((at least up to ~16 release candidate).
 The GUI files are different for 2.33 and are in a separate directory.
 
 Allows connection of a Garnet SeeLevel NMEA2000 tank sensor system to Victron Venus OS (e.g, Color Control GX) controller
@@ -52,24 +52,6 @@ Installation:
 You will need root access to the Venus device. Instructions can be found here:
 https://www.victronenergy.com/live/ccgx:root_access
 
-Note: The SeeLevel service name was determined by monitoring an active system with dbus-spy. This name WILL be different on each system. 
-The name is stored in non-volatile settings, accessible via dbus-spy.
-The settings service is: com.victronenergy.settings
-The value to change is: /Settings/Devices/TankRepeater/SeeLevelService
-The easiest way to set the value is to copy the service name from the main dbus-spy screen. It will look something like:
-
-com.victronenergy.tank.socketcan_can0_di0_uc855
-
-After copying the string, enter the settings service and scroll down to Settings/Devices/TankRepeater/SeeLevelService
-
-press enter, then paste the clipbord and enter again
-
-You may need to exit the OverviewMobile screen, then come back to it in order for the tanks column to populate properly.
-
-Note, you will NOT see Settings/Devices/TankRepeater/SeeLevelService if you have not already run SeeLevelRepeater at least once. After that, the setting persists through reboots and system updates.
-
-I tried to automate this but there isn't enough information provided by SeeLevel to uniquely identify it relative to other CanBus tank sensors. At least this is better than editing the code as it was in earlier versions.
-
 SeeLevelRepeater must be set up to run at system boot. The Venus service starter provides a simple mechanism: simply create a symbolic link to the actual code. 
 
 The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! All folders and files in this GitHub should be copied to /data, preserving the file hierarchy.
@@ -104,6 +86,22 @@ xxx is either 2.33 or 2.42-2.60 depending on your system version
 Reboot the Venus system:
 
 reboot from the command line or use the GUI to reboot
+
+Configuration:
+
+The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
+If this is the proper ProductId, no configuration should be necessary and the Mobile Overview screen should populate with the repeaters. If not, the default ProductId may need to be changed. (May also useful for other CanBus tank systems.)
+It can be changed using the dbus-spy utility.
+The SeeLevel service  will be something like: com.victronenergy.tank.socketcan_can0_di0_uc855
+Once the proper ProductId is known, access the com.victronenergy.settings service
+and change /Settings/Devices/TankRepeater/SeeLevelProductId to mach.
+The value of /Settings/Devices/TankRepeater/SeeLevelService should then change to match the SeeLevel service.
+
+You may need to exit the Mobile Overview screen, then come back to it in order for the tanks column to populate properly.
+
+The repeater can also be disabled by setting /Settings/Devices/TankRepeater/SeeLevelProductId to -1
+
+
 
 You can view logs using the unix 'tail' command:
 
