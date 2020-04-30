@@ -332,8 +332,8 @@ SeeLevelDbusOK = False
 NoLevelCount = 0
 NoCapacityCount = 0
 AlreadyLogged = False
-NewSeeLevelProdId = False
-SeeLevelSearchDelay = -1
+NewSeeLevelProdId = True	# force immediate service reference updates
+SeeLevelSearchDelay = 0
 
 # this is the dBus bus (system in this case)
 TheBus = None
@@ -385,21 +385,27 @@ def CheckSeeLevel():
 
 # check for SeeLevel service present
 # done every 10 passes (seconds) if a service hasn't already been found
-# or if we have received a new product ID from non-volatile settings
+# or immediately if a new product ID from non-volatile setting is pending
+# productId == -1 disables search for service - SeeLevel service name is cleared so GUI will not hide it in the tanks list
 		if (SeeLevelDbusOK == False and SeeLevelSearchDelay == 0) or NewSeeLevelProdId == True:
+			nvProductId = NvSettings['seeLevelProdIdNv']
+			if nvProductId == -1 and NewSeeLevelProdId == True:
+				logging.warning ("SeeLevel Repeater disabled")
+				NvSettings['seeLevelNameNv'] = ""
+
 			NewSeeLevelProdId = False
 			SeeLevelDbusOK = False
-			nvProductId = NvSettings['seeLevelProdIdNv']
-# productId == -1 disables search for service
-			if nvProductId != -1:
-				for service in TheBus.list_names():
+			SeeLevelSearchDelay = 0
+
+			for service in TheBus.list_names():
 # ignore repeater services
-					if service.startswith(RepeaterServiceName):
-						continue
-					if service.startswith("com.victronenergy.tank"):
-						if TheBus.get_object(service, '/ProductId').GetValue() == nvProductId:
-							SeeLevelDbusOK = True
-							break
+				if service.startswith(RepeaterServiceName):
+					continue
+# found a match - stop looking
+				if service.startswith("com.victronenergy.tank") \
+						and TheBus.get_object(service, '/ProductId').GetValue() == nvProductId:
+					SeeLevelDbusOK = True
+					break
 
 # found a matching service - now set up SeeLevel references
 # including Nv copy of service name which is used by the GUI to hide the SeeLevel tank
