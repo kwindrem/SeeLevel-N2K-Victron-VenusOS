@@ -12,7 +12,18 @@
 # Other N2K systems may report more and this repeater should be able to handle them as long as
 # the tank number is unique
 
-# Limitation: Only one repeater program is permitted since a second one would attemt to create duplicate dBus services
+# The SeeLevel service is identified by its product ID stored in non-volatile settings at
+# dbus com.victron.settings /Settings/Devices/TankRepeater/SeeLevelProdId
+# When this process first starts, it creates the setting with a default value of 41312
+# If the ProcessId for the service of interest is different dbus-spy can be used to change it
+# Use dbus-spy to inspect the SeeLevel tank service for the proper value to enter
+# Setting ProcessId to -1 disables the repeater. Venus may need to be restarted to purge any repeaters
+# that have already been created
+
+# dbus com.victron.settings /Settings/Devices/TankRepeater/SeeLevelService is set by the repeater program
+# so that the GUI can hide the appropirate service
+
+# Limitation: Only one repeater program is permitted since a second one would attempt to create duplicate dBus services
 
 # Modifications to OverviewMobile.qml in the GUI arr needed to hide the SeeLevel dBus object that rotates between tank data
 # Modificaitons to TileTank.qml have also been made to:
@@ -67,16 +78,10 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../ext/velib_python'
 from vedbus import VeDbusService
 from settingsdevice import SettingsDevice
 
-# SeeLevelServiceName is the name of the SeeLevel dBus service we need to separate
-# the name is determined by examining the system once the SeeLevel N2K sensor system is attached
-# then entering it into /Settings/Devices/TankRepeater/SeeLevelServiceName under settings using dbus-spy
-
-SeeLevelServiceName = ''
-
 # RepeaterServiceName is the name of the dBus service where data is sent
-# instance number is filled in when the service is created
+# tank number is appended when the service is created
 
-RepeaterServiceName = 'com.victronenergy.tank.Repeater%02d'
+RepeaterServiceName = 'com.victronenergy.tank.repeater'
 ProductName = 'SeeLevel Tank %d Repeater'
 
 # timer periods and watchdog timeout are defined here for convenience
@@ -179,7 +184,7 @@ class Repeater:
     def _createDbusService (self):
 
 # create a unique service name that puts tanks in the desired order (see note at top of this module)
-	self.ServiceName = RepeaterServiceName % self.Tank
+	self.ServiceName = RepeaterServiceName + "_%d" % self.Tank
 
 # updated version of VeDbusService (in ext directory) -- see https://github.com/victronenergy/dbus-digitalinputs for new imports
 	self.DbusService = VeDbusService (self.ServiceName, bus = self.DbusBus)
@@ -194,7 +199,7 @@ class Repeater:
 # Create the objects
 
 	self.DbusService.add_path ('/Mgmt/ProcessName', __file__)
-	self.DbusService.add_path ('/Mgmt/ProcessVersion', '2.0')
+	self.DbusService.add_path ('/Mgmt/ProcessVersion', '1.0')
         self.DbusService.add_path ('/Mgmt/Connection', 'dBus')
 
         self.DbusService.add_path ('/DeviceInstance', self.Tank)
@@ -327,7 +332,8 @@ SeeLevelDbusOK = False
 NoLevelCount = 0
 NoCapacityCount = 0
 AlreadyLogged = False
-NewSeeLevelServiceName = False
+NewSeeLevelProdId = False
+SeeLevelSearchDelay = -1
 
 # this is the dBus bus (system in this case)
 TheBus = None
@@ -342,66 +348,89 @@ RepeaterList =  [None,  None, None, None, None, None ]
 # innitialize object pointers if so
 # invalidate object pointers if not
 
+# signal handlers are the primary update for level and capacity unless there is only one tank
+# or values don't change between tanks, so we still need to poll for values here
+
+# dbus exceptions will occur if SeeLevel object doesn't exist (normal)
+# or if the GUI isn't running (CanBus runs from GUI thread) (also expected)
+
+
 def CheckSeeLevel():
 
-	global SeeLevelServiceName
+	global SeeLevelUniqueName
+	global SeeLevelDbusOK
+	global NvSettings
 
 	global SeeLevelTankObject
 	global SeeLevelFluidLevelObject
 	global SeeLevelCapacityObject
-	global SeeLevelUniqueName
-	global NewSeeLevelServiceName
+
+	global NewSeeLevelProdId
 
 	global RepeaterList
 	global LastTank
 	global LastLevel
 	global LastCapacity
 	global TheBus
-	global SeeLevelDbusOK
 	global NoLevelCount
 	global NoCapacityCount
 	global AlreadyLogged
+	global SeeLevelSearchDelay
 
-# if name is null - nothing to do
-	if SeeLevelServiceName == '':
-		SeeLevelDbusOK = False
-		return True
-
-	tank = -99
-	tank2 = -999
-	level = -99
-	capacity = -99
-
-	try:
-# innitialize object pointers if not done already
-# dbus exceptions will occur if SeeLevel object doesn't exist (normal)
-# or if the GUI isn't running (CanBus runs from GUI thread)
-		if NewSeeLevelServiceName == True or SeeLevelDbusOK == False:
-			SeeLevelTankObject = TheBus.get_object(SeeLevelServiceName, '/FluidType')
-			SeeLevelFluidLevelObject = TheBus.get_object(SeeLevelServiceName, '/Level')
-			SeeLevelCapacityObject = TheBus.get_object (SeeLevelServiceName, '/Capacity')
-			SeeLevelUniqueName = TheBus.get_name_owner(SeeLevelServiceName)
-			logging.info ("SeeLevel dBus connection established at:%s:" % SeeLevelServiceName) 
-			SeeLevelDbusOK = True
-			NewSeeLevelServiceName = False
-			AlreadyLogged = False
+	SeeLevelSearchDelay += 1
+	if SeeLevelSearchDelay > 10:
+		SeeLevelSearchDelay = 0
 	
+	try:
+
+# check for SeeLevel service present
+# done every 10 passes (seconds) if a service hasn't already been found
+# or if we have received a new product ID from non-volatile settings
+		if (SeeLevelDbusOK == False and SeeLevelSearchDelay == 0) or NewSeeLevelProdId == True:
+			NewSeeLevelProdId = False
+			SeeLevelDbusOK = False
+			nvProductId = NvSettings['seeLevelProdIdNv']
+# productId == -1 disables search for service
+			if nvProductId != -1:
+				for service in TheBus.list_names():
+# ignore repeater services
+					if service.startswith(RepeaterServiceName):
+						continue
+					if service.startswith("com.victronenergy.tank"):
+						if TheBus.get_object(service, '/ProductId').GetValue() == nvProductId:
+							SeeLevelDbusOK = True
+							break
+
+# found a matching service - now set up SeeLevel references
+# including Nv copy of service name which is used by the GUI to hide the SeeLevel tank
+			if SeeLevelDbusOK:
+				SeeLevelTankObject = TheBus.get_object(service, '/FluidType')
+				SeeLevelFluidLevelObject = TheBus.get_object(service, '/Level')
+				SeeLevelCapacityObject = TheBus.get_object (service, '/Capacity')
+				SeeLevelUniqueName = TheBus.get_name_owner(service)
+				LastTank = -99
+				NoLevelCount = 0
+				NoCapacityCount = 0
+				AlreadyLogged = False
+				logging.info ("SeeLevel dBus connection established at:%s:" % service) 
+				NvSettings['seeLevelNameNv'] = service
+
+# skip processing if no SeeLevel service
+		if SeeLevelDbusOK == False:
+			return True
+
 # do a background update to the associated repeater
-# signal handlers are the primary update for level and capacity unless there is only one tank
-# or values don't change between tanks
 		tank = SeeLevelTankObject.GetValue()
 		level = SeeLevelFluidLevelObject.GetValue()
 		capacity = SeeLevelCapacityObject.GetValue ()
 		tank2 = SeeLevelTankObject.GetValue()
 
 	except dbus.DBusException:
-		LastTank = -99
-		NoLevelCount = 0
-		NoCapacityCount = 0
 		SeeLevelDbusOK = False
 		if AlreadyLogged == False:
-			logging.warning ("No response from SeeLevel at:%s:", SeeLevelServiceName)
+			logging.warning ("No response from SeeLevel at:%s:", NvSettings['seeLevelNameNv'])
 			AlreadyLogged = True
+		return True
 
 
 # update the repeater's level and capacity values from the poll
@@ -409,14 +438,14 @@ def CheckSeeLevel():
 	if tank >= 0 and tank < len(RepeaterList) and tank == tank2:
 		RepeaterList [tank].UpdateRepeater (level, capacity)
 
+# wait 10 passes before doing anything to give signals a chance to be received
 # if level signals are not being received but tank number signals ARE being received
-# the level of all tanks is probalby the same, so jam a polled value into LastLevel
-# wait 10 passes before jaming value to give signals a chance to be received
+# the level of all tanks is probalby the same, so set LastLevel from the polled value
 	if (LastLevel == -99 and LastTank != -99 and level != -99):
 		NoLevelCount += 1					
 		if NoLevelCount > 10:
 			LastLevel = level
-			logging.info ("No Level signals have been received - using polled data") 
+			logging.info ("No /Level signals have been received - using polled data") 
 	else:
 		NoLevelCount = 0
 
@@ -425,7 +454,7 @@ def CheckSeeLevel():
 		NoCapacityCount += 1					
 		if NoCapacityCount > 10:
 			LastCapacity = capacity
-			logging.info ("No Capacity signals have been received - using polled data") 
+			logging.info ("No /Capacity signals have been received - using polled data") 
 	else:
 		NoCapacityCount = 0
 
@@ -452,6 +481,7 @@ def FluidTypeHandler (changes, sender):
 
 	if changes.get ("Text") == "":
 		return
+
 	tank = int (changes.get ("Value"))
 
 # Update the repeater based on PREVIOUS tank, level and capacity before saving the current tank for next call
@@ -477,9 +507,8 @@ def FluidLevelHandler (changes, sender):
 
 # save level for processing during next call of FluidTypeHandler
 # test value as text to identify an invaild value before extracting the actual value
-	if changes.get ("Text") == "":
-		return
-	LastLevel = float (changes.get ("Value"))
+	if changes.get ("Text") != "":
+		LastLevel = float (changes.get ("Value"))
 
 	return
 
@@ -496,9 +525,8 @@ def FluidCapacityHandler (changes, sender):
 
 # save capacity for processing during next call of FluidTypeHandler
 # test value as text to identify an invaild value before extracting the actual value
-	if changes.get ("Text") == "":
-		return
-	LastCapacity = float (changes.get ("Value"))
+	if changes.get ("Text") != "":
+		LastCapacity = float (changes.get ("Value"))
 
 	return
 
@@ -506,21 +534,21 @@ def FluidCapacityHandler (changes, sender):
 NvSettings = ''
 
 
-def GetSeeLevelName ():
-	global NvSettings
-        return NvSettings['seeLevelName']
+# NV copy of SeeLevel service Product Id changed
+# set the flag - value change handled elsewnere
+# SeeLevel service name comes in here also
+# (This code only sets that value so ignore changes from elsewhere)
 
-# NV copy of SeeLevel service name changed
-# update local value and reacquire service
-def SeeLevelNameChanged (name, old, new):
-	global NewSeeLevelServiceName
+def SeeLevelSettingChanged (name, old, new):
+	global NewSeeLevelProdId
 
-	if name != 'seeLevelName':	
-		return
+	if name == 'seeLevelProdIdNv':
+		NewSeeLevelProdId = True
 
-	SeeLevelServiceName = new
-	NewSeeLevelServiceName = True
+#	elif name == 'seeLevelNameNv':
+		# do nothing
 	return
+
 
 def main():
 
@@ -529,7 +557,6 @@ def main():
 	global TheBus
 	global SeeLevelServiceChanged
 	global NvSettings
-	global SeeLevelServiceName
 
 # set logging level to include info level entries
 	logging.basicConfig(level=logging.INFO)
@@ -560,12 +587,10 @@ def main():
 # create non-volatile setting for SeeLevel dBus service name
 # dbus-spy will fill in that value when SeeLevel is being installed
 
-        SETTINGS = { 'seeLevelName': ['/Settings/Devices/TankRepeater/SeeLevelService', '', 0, 0] }
+	SETTINGS = {	'seeLevelNameNv': ['/Settings/Devices/TankRepeater/SeeLevelService', '', 0, 0],
+			'seeLevelProdIdNv': ['/Settings/Devices/TankRepeater/SeeLevelProductId', 41312, -1, 999999] }
 
-        NvSettings = SettingsDevice(TheBus, SETTINGS, SeeLevelNameChanged)
-
-	SeeLevelServiceName = GetSeeLevelName ()
-
+        NvSettings = SettingsDevice(TheBus, SETTINGS, SeeLevelSettingChanged)
 
 # periodically look for SeeLevel service
 	gobject.timeout_add(SeeLevelScanPeriod, CheckSeeLevel)
