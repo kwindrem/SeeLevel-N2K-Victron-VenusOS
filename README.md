@@ -54,43 +54,32 @@ https://www.victronenergy.com/live/ccgx:root_access
 
 SeeLevelRepeater must be set up to run at system boot. The Venus service starter provides a simple mechanism: simply create a symbolic link to the actual code. 
 
-The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! All folders and files in this GitHub should be copied to /data, preserving the file hierarchy.
+The /data directory on Venus is a convenient location for apps like SeeLevelRepeater since the entire /data directory survives a firmware update. Most other directories are overwritten! 
 
-The unix command 'scp' can be used from a computer on the same network as the Venus hardware to copy files. 'ssh' can be used to log in and make changes. From Mac OS, these can be issued from Terminal. Not sure about Windows.
+All folders and files in this GitHub should be copied to a unix host computer with access to the Venus device. The file hierarchy must be preserved.
 
-Note: Automatic firmware updates to the Venus device should be disabled. When an update occurs, several files installed to support SeeLevelRepeater are overwritten and must be reinstalled. These are flagged below
+Install scripts are provided. The main one: installFromHost runs on the host computer and copies all files to /data/TankRepeater on the venus device. Next, installOnVenus runs automatically on the Venus device to complete the installation and activate the repeater.
 
-Copy all files included in this package to the /data directory on the Venus device.
+The GUI on the Venus device will be restarted at the end of the install.
 
-E.g., from a host unix machine, change to the directory where TankRepeater lives, then execute
+Two GUI files are overwritten during the install.
+The original files are moved to files ending in .orig should you need to restore them in the future.
 
-scp -r TankRepeater root@<venus ip address>:/data
+Should you wish to uninstall the repeater, an uninstall script is provided. Run it from the /data directory on the Venus device:
 
-Then ssh root@<venus ip address> to do the other needed activities:
+TankRepeater/uninstall.
 
-Create the symbolic link that runs SeeLevelRepeater.
-You will need to repeat this after a firmware update.
+You may also use commands like scp and ssh to manually copy files and install the bits and pieces on the Venus device.
 
-cd /service
-ln -s /data/TankRepeater/SeeLevelRepeater .
+Note: Automatic firmware updates to the Venus device should be disabled. When an update occurs, several files installed to support SeeLevelRepeater are overwritten and must be reinstalled. These are flagged below, but the easiest approach is to run installOnVenus from a command line on the Venus device.
 
-Replace the GUI components, retaining the old copies in case you need to back out the change. 
-You will need to repeat this after a firmware update.
+If you are running Venus OS version 2.33, you must manually copy the files in GuiUpdates2.33 to /opt/victronenergy/gui/qml then restart the gui process (or reboot).
 
-cd /opt/victronenergy/gui/qml
-mv OverviewMobile.qml OverviewMobile.qml.old
-mv TileTank.qml TileTank.qml.old
-cp /data/TankRepeater/GuiUpdaetsForxxx/*.qml .
-xxx is either 2.33 or 2.42-2.60 depending on your system version
-
-Reboot the Venus system:
-
-reboot from the command line or use the GUI to reboot
 
 Configuration:
 
 The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
-If this is the proper ProductId, no configuration should be necessary and the Mobile Overview screen should populate with the repeaters. If not, the default ProductId may need to be changed. (May also useful for other CanBus tank systems.)
+If this is the proper ProductId, no configuration should be necessary and the Mobile Overview screen should populate with the repeater tanks. If not, the default ProductId may need to be changed. (May also be useful for other CanBus tank systems.)
 It can be changed using the dbus-spy utility.
 The SeeLevel service  will be something like: com.victronenergy.tank.socketcan_can0_di0_uc855
 Once the proper ProductId is known, access the com.victronenergy.settings service
