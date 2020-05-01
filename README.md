@@ -58,6 +58,15 @@ The /data directory on Venus is a convenient location for apps like SeeLevelRepe
 
 All folders and files in this GitHub should be copied to a unix host computer with access to the Venus device. The file hierarchy must be preserved.
 
+In the unlikely event you are still running Venus verion 2.33, you need to rename a folder before proceeding:
+Delete or rename the GuiUpdates folder, then rename GuiUpdates2.33 to GuiUpdates.
+
+The version is shown on the the Venus Settings > Firmware GUI screen or you can type the following at a unix command prompt:
+
+more /opt/victronenergy/version
+
+If you are running a version prior to 2.33, you will need to manually migrate the GUI changes to the OverviewMobile.qml and TileTank.qml files provided with that version. See below for details.
+
 Install scripts are provided. The main one: installFromHost runs on the host computer and copies all files to /data/TankRepeater on the venus device. Next, installOnVenus runs automatically on the Venus device to complete the installation and activate the repeater.
 
 The GUI on the Venus device will be restarted at the end of the install.
