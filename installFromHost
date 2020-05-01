@@ -1,0 +1,36 @@
+#!/bin/sh
+
+echo This script copies files from a unix host to the Venus device
+echo then installs the files on Venus
+echo
+
+read -p "Enter the IP address of your Venus OS device: " ipAddr
+
+controlPath=~/.ssh/%r@%h:%p
+
+filesToCopy='ext GuiUpdates* installOnVenus  uninstall ReadMe SeeLevelRepeater'
+
+echo Removing any previous Repeater files from Venus
+
+echo To continue, enter the root password for the Venus device
+
+ssh -o ControlMaster=yes -o ControlPersist=1m -o ControlPath=$controlPath root@$ipAddr rm -rf /data/TankRepeater
+
+echo Creating TankRepeater directory
+ssh -o ControlPath=$controlPath root@$ipAddr mkdir /data/TankRepeater
+
+cd -- "$(dirname "$0")"
+
+echo Copying files to Venus
+
+scp -rq -o ControlPath=$controlPath $filesToCopy root@$ipAddr:/data/TankRepeater
+
+echo Running installOnVenus script on Venus device
+
+ssh -o ControlPath=$controlPath root@$ipAddr /data/TankRepeater/installOnVenus
+
+echo Script installOnVenus complete
+
+ssh -o ControlPath=$controlPath -O exit root@$ipAddr
+sleep 2
+echo Install script complete

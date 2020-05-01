@@ -1,0 +1,41 @@
+#!/bin/sh
+
+echo Installing GUI files and setting SeeLevelRepeater to run at startup
+
+qmlDir=/opt/victronenergy/gui/qml
+
+srcFile=$qmlDir/OverviewMobile.qml
+destFile=$srcFile.orig
+
+if [ -f "$destFile" ]; then
+	echo $destFile exists - not changed
+else
+	echo $srcFile saved as $destFile
+	cp $srcFile $destFile
+fi
+
+srcFile=$qmlDir/TileText.qml
+destFile=$srcFile.orig
+
+if [ -f "$destFile" ]; then
+	echo $destFile exists - not changed
+else
+	echo $srcFile saved as $destFile
+	cp $srcFile $destFile
+fi
+
+cp /data/TankRepeater/GuiUpdates/*.qml $qmlDir
+
+echo Restarting repeater processes - ignore any errors reported
+rm -f /service/SeeLevelRepeater
+ps |grep See |grep -v grep|awk '{print $1}' | xargs kill
+
+ln -s /data/TankRepeater/SeeLevelRepeater /service
+
+echo Waiting 10 seconds for Repeater to start
+sleep 10
+echo Restarting GUI
+killall gui
+
+echo SeeLevel Repeater install complete
+
