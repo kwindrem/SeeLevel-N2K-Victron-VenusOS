@@ -2,11 +2,11 @@
 
 echo Installing GUI files and setting SeeLevelRepeater to run at startup
 
+echo Preserving original GUI files
 qmlDir=/opt/victronenergy/gui/qml
 
 srcFile=$qmlDir/OverviewMobile.qml
 destFile=$srcFile.orig
-
 if [ -f "$destFile" ]; then
 	echo $destFile exists - not changed
 else
@@ -16,7 +16,6 @@ fi
 
 srcFile=$qmlDir/TileText.qml
 destFile=$srcFile.orig
-
 if [ -f "$destFile" ]; then
 	echo $destFile exists - not changed
 else
@@ -24,9 +23,23 @@ else
 	cp $srcFile $destFile
 fi
 
-cp /data/TankRepeater/GuiUpdates/*.qml $qmlDir
+#single out version 2.33 and 2.60~19 for unique .qml files
 
-echo Restarting repeater processes - ignore any errors reported
+version=`head -n 1 /opt/victronenergy/version`
+
+echo Detected Venus $version
+
+guiDir=/data/TankRepeater/GuiUpdates
+if [ $version == 'v2.33' ]; then
+    guiDir=$guiDir'2.33'
+elif [ $version == 'v2.60~19' ]; then
+    guiDir=$guiDir'2.60~19'
+fi
+
+echo Copying updated GUI files from $guiDir
+cp $guiDir$guiDirExt/* $qmlDir
+
+echo Starting repeater processes - ignore any errors reported
 rm -f /service/SeeLevelRepeater
 ps |grep See |grep -v grep|awk '{print $1}' | xargs kill
 
