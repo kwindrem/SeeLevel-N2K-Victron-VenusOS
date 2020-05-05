@@ -1,43 +1,60 @@
 #!/bin/sh
 
-echo Installing GUI files and setting SeeLevelRepeater to run at startup
-
-echo Preserving original GUI files
-qmlDir=/opt/victronenergy/gui/qml
-
-srcFile=$qmlDir/OverviewMobile.qml
-destFile=$srcFile.orig
-if [ -f "$destFile" ]; then
-	echo $destFile exists - not changed
-else
-	echo $srcFile saved as $destFile
-	cp $srcFile $destFile
-fi
-
-srcFile=$qmlDir/TileText.qml
-destFile=$srcFile.orig
-if [ -f "$destFile" ]; then
-	echo $destFile exists - not changed
-else
-	echo $srcFile saved as $destFile
-	cp $srcFile $destFile
-fi
-
-#single out version 2.33 and 2.60~19 for unique .qml files
-
 version=`head -n 1 /opt/victronenergy/version`
 
-echo Detected Venus $version
+echo Detected Venus version $version
 
 guiDir=/data/TankRepeater/GuiUpdates
-if [ $version == 'v2.33' ]; then
-    guiDir=$guiDir'2.33'
-elif [ $version == 'v2.60~19' ]; then
-    guiDir=$guiDir'2.60~19'
-fi
+qmlDir=/opt/victronenergy/gui/qml
 
-echo Copying updated GUI files from $guiDir
-cp $guiDir$guiDirExt/* $qmlDir
+# select GUI file set based on Venus version
+case $version in
+        v2.33)
+                guiVer='2.33'
+                ;;
+        v2.42|v2.51|v2.52|v2.53|v2.60~14|v2.60~15|v2.60~16)
+                 guiVer='2.42'
+                ;;
+        v2.60~19)
+                guiVer='2.60~19'
+                ;;
+        *)
+                guiVer='none'
+                ;;
+esac
+
+if [ $guiVer == 'none' ]; then
+    echo WARNING no GUI files for Venus $version
+    echo No GUI files will be changed
+    echo You must manually merge GUI changes in these files:
+    echo "   OverviewMobile.qml"
+    echo "   TileTank.qml"
+else
+    echo Preserving original GUI files
+
+    srcFile=OverviewMobile.qml
+    destFile=$srcFile.orig
+    if [ -f "$destFile" ]; then
+        echo $destFile exists from previous repeater installation and will not changed
+        echo $srcFile will be overwritten
+    else
+        echo $srcFile saved as $destFile
+        mv $qmlDir/$srcFile $qmlDir/$destFile
+    fi
+
+    srcFile=TileTank.qml
+    destFile=$srcFile.orig
+    if [ -f "$destFile" ]; then
+        echo $destFile exists from previous repeater installation and will not changed
+        echo $srcFile will be overwritten
+    else
+        echo $srcFile saved as $destFile
+        mv $qmlDir/$srcFile $qmlDir/$destFile
+    fi
+
+    echo Copying updated GUI files from GuiUpdates$guiVer
+    cp $guiDir$guiVer/* $qmlDir
+fi
 
 echo Starting repeater processes - ignore any errors reported
 rm -f /service/SeeLevelRepeater
