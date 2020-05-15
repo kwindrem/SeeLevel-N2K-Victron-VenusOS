@@ -15,7 +15,7 @@ case $version in
         v2.42|v2.51|v2.52|v2.53|v2.60~14|v2.60~15|v2.60~16)
                  guiVer='2.42'
                 ;;
-        v2.60~19)
+        v2.60~19|v2.60~22)
                 guiVer='2.60~19'
                 ;;
         *)
@@ -30,11 +30,9 @@ if [ $guiVer == 'none' ]; then
     echo "   OverviewMobile.qml"
     echo "   TileTank.qml"
 else
-    echo Preserving original GUI files
-
     srcFile=OverviewMobile.qml
     destFile=$srcFile.orig
-    if [ -f "$destFile" ]; then
+    if [ -f $qmlDir/$destFile ]; then
         echo $destFile exists from previous repeater installation and will not changed
         echo $srcFile will be overwritten
     else
@@ -44,7 +42,7 @@ else
 
     srcFile=TileTank.qml
     destFile=$srcFile.orig
-    if [ -f "$destFile" ]; then
+    if [ -f $qmlDir/$destFile ]; then
         echo $destFile exists from previous repeater installation and will not changed
         echo $srcFile will be overwritten
     else
@@ -58,9 +56,9 @@ fi
 
 echo Starting repeater processes - ignore any errors reported
 rm -f /service/SeeLevelRepeater
-ps |grep See |grep -v grep|awk '{print $1}' | xargs kill
+ps |grep SeeLevelRepeater |grep -v grep|awk '{print $1}' | xargs kill
 
-ln -s /data/TankRepeater/SeeLevelRepeater /service
+ln -s /data/TankRepeater/service /service/SeeLevelRepeater
 
 echo Waiting 10 seconds for Repeater to start
 sleep 10

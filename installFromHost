@@ -8,7 +8,7 @@ read -p "Enter the IP address of your Venus OS device: " ipAddr
 
 controlPath=~/.ssh/%r@%h:%p
 
-filesToCopy='ext GuiUpdates* installOnVenus  uninstall ReadMe SeeLevelRepeater'
+filesToCopy='ext SeeLevelRepeater.py GuiUpdates* ReadMe service installOnVenus uninstall'
 
 echo Removing any previous Repeater files from Venus
 
