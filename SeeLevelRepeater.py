@@ -74,7 +74,7 @@ import dbus
 import time
 
 # add the path to our own packages for import
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../ext/velib_python'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), './ext/velib_python'))
 from vedbus import VeDbusService
 from settingsdevice import SettingsDevice
 
@@ -543,7 +543,7 @@ NvSettings = ''
 # NV copy of SeeLevel service Product Id changed
 # set the flag - value change handled elsewnere
 # SeeLevel service name comes in here also
-# (This code only sets that value so ignore changes from elsewhere)
+# (This code only sets productId so ignore changes for service name)
 
 def SeeLevelSettingChanged (name, old, new):
 	global NewSeeLevelProdId
@@ -590,13 +590,16 @@ def main():
                 dbus_interface='com.victronenergy.BusItem', signal_name='PropertiesChanged',
 		sender_keyword="sender")
 
-# create non-volatile setting for SeeLevel dBus service name
-# dbus-spy will fill in that value when SeeLevel is being installed
+# create non-volatile setting for SeeLevel dBus service name and productId
+# installer will modify in productId via dbus-spy if necessary when setting things up - default is 41312
+# service name is set up by CheckSeeLevel above if service is found matching the productId
+# the GUI uses the service name to hide the SeeLevel dBus service
+# SettingsDevice could be called early in system boot so wait up to 10 seconds before giving up
 
 	SETTINGS = {	'seeLevelNameNv': ['/Settings/Devices/TankRepeater/SeeLevelService', '', 0, 0],
 			'seeLevelProdIdNv': ['/Settings/Devices/TankRepeater/SeeLevelProductId', 41312, -1, 999999] }
 
-        NvSettings = SettingsDevice(TheBus, SETTINGS, SeeLevelSettingChanged)
+	NvSettings = SettingsDevice(TheBus, SETTINGS, SeeLevelSettingChanged, timeout = 10)
 
 # periodically look for SeeLevel service
 	gobject.timeout_add(SeeLevelScanPeriod, CheckSeeLevel)
