@@ -1,7 +1,7 @@
 # SeeLevel-N2K-Victron-VenusOS
 
-This enhancment works on 2.33 and 2.42-2.60 ((at least up to ~16 release candidate).
-The GUI files are different for 2.33 and are in a separate directory.
+This enhancment works on 2.33 and 2.42-2.60 ((at least up to ~22 release candidate).
+The GUI files for various versions differ. The correct files are installed by the install script.
 
 Allows connection of a Garnet SeeLevel NMEA2000 tank sensor system to Victron Venus OS (e.g, Color Control GX) controller
 
@@ -58,13 +58,13 @@ The /data directory on Venus is a convenient location for apps like SeeLevelRepe
 
 All folders and files in this GitHub should be copied to a unix host computer with access to the Venus device. The file hierarchy must be preserved.
 
-Separate GUI files are provided for v2.33, v2.60~19 and a set for all versions in between. The correct set is selected based on the Venus version (read from /opt/victronenergy/version).
+If you are running a version not suppored by the GUI files provided, you will need to manually migrate the GUI changes to the OverviewMobile.qml and TileTank.qml files provided with that version. See below for details.
 
 Install scripts are provided. The main one: installFromHost runs on the host computer and copies all files to /data/TankRepeater on the venus device. Next, installOnVenus runs automatically on the Venus device to complete the installation and activate the repeater.
 
 The GUI on the Venus device will be restarted at the end of the install.
 
-Two GUI files are overwritten during the install.
+Two GUI files are replaced during the install.
 The original files are moved to files ending in .orig should you need to restore them in the future.
 
 Should you wish to uninstall the repeater, an uninstall script is provided. Run it from the /data directory on the Venus device:
@@ -74,9 +74,6 @@ TankRepeater/uninstall.
 You may also use commands like scp and ssh to manually copy files and install the bits and pieces on the Venus device.
 
 Note: Automatic firmware updates to the Venus device should be disabled. When an update occurs, several files installed to support SeeLevelRepeater are overwritten and must be reinstalled. These are flagged below, but the easiest approach is to run installOnVenus from a command line on the Venus device.
-
-If you are running Venus OS version 2.33, you must manually copy the files in GuiUpdates2.33 to /opt/victronenergy/gui/qml then restart the gui process (or reboot).
-
 
 Configuration:
 
@@ -92,17 +89,17 @@ You may need to exit the Mobile Overview screen, then come back to it in order f
 
 The repeater can also be disabled by setting /Settings/Devices/TankRepeater/SeeLevelProductId to -1
 
-
-
 You can view logs using the unix 'tail' command:
 
 GUI log:
 
-tail /var/log/gui/current
+tail /var/log/gui/current | tai64nlocal
 
 SeeLevelRepeater log:
 
-tail /data/TankRepeater/SeeLevelRepeater/log/main/current
+tail /var/log/SeeLevelRepeater/current | tai64nlocal
+
+tai64nlocal converts the timestamp at the beginning of each log entry to a human readable date and time (as UTC/GMT because Venus runs with system local time set to UTC).
 
 dbus-spy can also be used to examine dBus services to aid in troubleshooting problems.
 
@@ -117,17 +114,17 @@ Changes to TileTank.qml are extensive. Most likely, you will simply be able to o
 
 Hardware:
 
-This package relies on an NEMA2000 version of the Garnet SeeLevel repeater. It will not work with the standart or RV-C versions. Garnet's number for this version is 709-K2K NLP. It MAY work with other NMEA2000 tank sensor systems that report multiple tanks. 
+This package relies on an NEMA2000 version of the Garnet SeeLevel sensor system. It will not work with the standard or RV-C versions. Garnet's number for this version is 709-N2K NLP. It MAY work with other NMEA2000 tank sensor systems that report multiple tanks.
 
 This version of the SeeLevel system uses a propriatary connector for the CAN-bus connection.
 This connector mates with the connector on the back of the SeeLevel control unit: 3M 37104-2165-000 FL 100
 And is available from DigiKey: https://www.digikey.com/product-detail/en/3m/37104-2165-000-FL-100/3M155844-ND/1238214
 
-A cable can be made up with this connector on one end and an RJ-45 on the other to plug into a VE.Can connector on the Venus device. You can alternatively make up a cable from this connector to a standard CAN-bus connector then use the VE.Can to CAN-bus adapter cable. Be sure to terminate the SeeLevel end of the cable, especially if it is long. I was able to crimp a 1/4 watt 120 ohm resister into the pins of the 3M connector along with the wires from the RJ-45.
+A cable can be made up with this connector on one end and an RJ-45 on the other to plug into a VE.Can connector on the Venus device. You can alternatively make up a cable from this connector to a standard CAN-bus connector then use the VE.Can to CAN-bus adapter cable. If you are not using standard CAN-bus cabling, be sure to terminate the SeeLevel end of the cable, especially if it is long. I was able to crimp a 1/4 watt 120 ohm resister into the pins of the 3M connector along with the wires from the CAT 5/6 cable.
 
-I have included a PDF of the various pinouts. The 3M connector pins are numbered.
+I have included a PDF of the various pinouts. The 3M connector pins are numbered on the housing.
 
-You need to connect CAN-H, CAN-L and -Voltage low (aka NET-C (V-), aka grond). I left +Voltage disconnected. Ground is required since the VE.Can connection on Venus is floating.
+You need to connect CAN-H, CAN-L and -Voltage (aka NET-C (V-), aka grond). I left +Voltage disconnected. Ground is required since the VE.Can connection on Venus is floating.
 
 
 I must give credit to Ben Brantley for providing his code that evolved into this package. You can find him on the Victron community forum.
