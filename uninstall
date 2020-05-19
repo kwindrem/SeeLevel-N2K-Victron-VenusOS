@@ -35,10 +35,11 @@ dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelServic
 
 echo Killing repeater processes and restarting gui - ignore any errors reported
 rm -f /service/SeeLevelRepeater
-ps |grep See |grep -v grep|awk '{print $1}' | xargs kill
+ps |grep SeeLevelRepeater |grep -v grep|awk '{print $1}' | xargs kill
 killall gui
 
 echo Removing Repeater files from /data
+echo Repeater log /var/log/SeeLevelRepeater retained for future reference
 rm -rf /data/TankRepeater
 
 echo SeeLevel Repeater uninstall complete

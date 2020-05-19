@@ -9,13 +9,10 @@ qmlDir=/opt/victronenergy/gui/qml
 
 # select GUI file set based on Venus version
 case $version in
-        v2.33)
-                guiVer='2.33'
-                ;;
-        v2.42|v2.51|v2.52|v2.53|v2.60~14|v2.60~15|v2.60~16)
+        v2.33|v2.42|v2.51|v2.52|v2.53|v2.60~14|v2.60~15|v2.60~16)
                  guiVer='2.42'
                 ;;
-        v2.60~19|v2.60~22)
+        v2.60~19|v2.60~22|v2.60~23)
                 guiVer='2.60~19'
                 ;;
         *)
@@ -26,7 +23,7 @@ esac
 if [ $guiVer == 'none' ]; then
     echo WARNING no GUI files for Venus $version
     echo No GUI files will be changed
-    echo You must manually merge GUI changes in these files:
+    echo You must manually merge GUI changes for these files:
     echo "   OverviewMobile.qml"
     echo "   TileTank.qml"
 else
@@ -51,7 +48,8 @@ else
     fi
 
     echo Copying updated GUI files from GuiUpdates$guiVer
-    cp $guiDir$guiVer/* $qmlDir
+    cp $guiDir/OverviewMobile.qml.$guiVer $qmlDir/OverviewMobile.qml
+    cp $guiDir/TileTank.qml $qmlDir
 fi
 
 echo Starting repeater processes - ignore any errors reported
