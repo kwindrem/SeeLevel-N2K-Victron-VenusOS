@@ -1,0 +1,41 @@
+1 {
+i \
+// SEELEVEL
+i \
+// This file has been automatically modified to handle SeeLevel NMEA2000 tank sensor:
+i \
+// The tank column will ignore the real SeeLevel dBus service because it's information changes
+i \
+// Search for // SEELEVEL to find changes
+i \
+// Also, find optional changes in TileText.qml
+i \
+
+}
+/id: root/ {
+i \
+// SEELEVEL - added the following line
+i \
+\        property string seeLevelServiceName: ""
+}
+/tanksModel.append/ {
+i \
+// SEELEVEL - added the following line
+i \
+\          if (service.name !== seeLevelServiceName)
+}
+/tanksModel.clear/ {
+i \
+// SEELEVEL - added the following line
+i \
+\        seeLevelServiceName = seeLevelName.valid ? seeLevelName.value : ""
+}
+$ {
+i \
+// SEELEVEL - added the following 2 lines
+i \
+\    VBusItem { id: seeLevelName;
+i \
+\        bind: Utils.path(settingsBindPreffix, "/Settings/Devices/TankRepeater/SeeLevelService") }
+}
+

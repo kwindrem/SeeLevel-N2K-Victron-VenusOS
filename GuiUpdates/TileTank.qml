@@ -1,24 +1,24 @@
-import QtQuick 1.1
-import "utils.js" as Utils
-
-//////// SeeLevel - replace the entire module
-
+// This file replaces the original TileTank.qml file
+// The changes here are optional and can be used with or without the SeeLevel repeater
 
 // Changes:
-// bar text turns red and indicates "NO RESPONSE" or "ERROR" for sensor connection errors
-// color of bar turns red on limits instead of blinking
-// color of bar text turns red below lower limit so there is some indication of empty when the bar is too small to see
-// if space is limited, bar graph height and associated text are reduced so up to 6 tanks will fit in the available space
-// beyond 6 tanks, the display gets bunched up and may not be readable
-// SeeLevel indicates sensor errors with out of range level values
-// however the NEMA2000 tank driver in Venus filters out these values so there is no way to detect sensor errors
-// use the SeeLevel display for troubleshooting
-// removed pump tests -- not used
+// Bar text turns red and indicates "NO RESPONSE" for sensor connection errors
+// if tank had already been responding at some time in the past
+// This indication is triggered by the dBus services's /Connected flag being 0
+// Color of bar turns red on limits instead of blinking
+// Color of bar text turns red below lower limit so there is some indication of empty when the bar is too small to be seen
+// If space is limited, bar graph height and associated text are reduced so up to 6 tanks will fit in the available space
+// Beyond 6 tanks, the display gets bunched up and may not be readable
 // Added custom tank name
 
 // The default Tile is not used. It is replicated here so that we can squeeze things to save vertical space
-// the squeeze is triggered by a height of less than 50 (more than 4 tanks)
-// squeeze affects title font size, underline, bar graph height and bar graph font size
+// Squeezing is triggered by a height of less than 50 (more than 4 tanks)
+// Squeeze affects title font size, underline, bar graph height and bar graph font size
+
+import QtQuick 1.1
+import "utils.js" as Utils
+
+
 
 Rectangle
 {
