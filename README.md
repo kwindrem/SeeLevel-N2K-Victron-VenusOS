@@ -1,7 +1,6 @@
 # SeeLevel-N2K-Victron-VenusOS
 
 This enhancment works on 2.33 and 2.42-2.60 ((at least up to ~22 release candidate).
-The GUI files for various versions differ. The correct files are installed by the install script.
 
 Allows connection of a Garnet SeeLevel NMEA2000 tank sensor system to Victron Venus OS (e.g, Color Control GX) controller
 
@@ -31,7 +30,7 @@ The latest change added a second signal handler for /Level changes.
 
 The GUI also needs changes in order to hide the SeeLevel tank information. The files are OverviewMobile.qml and TileTank.qml 
 
-GUI Changes:
+Tank Tile Changes (optional):
 
 1) Tank information is displayed in a box sized so that 3 of them fill the column. More tanks require smaller boxes. The changes made permit up to 6 tanks to be displayed comfortably. The box size is adjusted so that all tanks fill the tanks column. In the event more than 6 tanks are found in the system, the display will bunch up and may not be readable.
 
@@ -45,6 +44,9 @@ GUI Changes:
 5) Previous implementation of the TANKS display blinked some information. The blinking has been removed.
 
 6) Displays custom tank names
+
+These tank tile modifications are optional. The repeater will work with the stock tank tile, or the modified tank tile will work without the repeater.
+The file related to this change is TileTank.qml and is optionally installed in the scrips.
 
 
 Installation:
@@ -60,16 +62,30 @@ All folders and files in this GitHub should be copied to a unix host computer wi
 
 If you are running a version not suppored by the GUI files provided, you will need to manually migrate the GUI changes to the OverviewMobile.qml and TileTank.qml files provided with that version. See below for details.
 
-Install scripts are provided. The main one: installFromHost runs on the host computer and copies all files to /data/TankRepeater on the venus device. Next, installOnVenus runs automatically on the Venus device to complete the installation and activate the repeater.
+Install scripts are provided. The main one: installFromHost runs on the host computer and copies all files to /data/TankRepeater on the venus device. Next, installOnVenus is run by installFromHost on the Venus device to complete the installation and activate the repeater. It can also be run from the Venus device.
 
 The GUI on the Venus device will be restarted at the end of the install.
 
-Two GUI files are replaced during the install.
+One GUI file is modified during the install. One file (TileTank.qml) is optionally replaced during install.
 The original files are moved to files ending in .orig should you need to restore them in the future.
 
 Should you wish to uninstall the repeater, an uninstall script is provided. Run it from the /data directory on the Venus device:
 
 TankRepeater/uninstall.
+
+Optionally, an enhanced version of the Mobile Overview page can be installed. Changes:
+
+1) Tiles are arranged to more cloesly follow the power flow through the system.
+2) Voltage, current and frequency values are added to the AC in and out tiles.
+3) Battery remaining time is added to the Battery tile
+4) ESS reason codes are replaced with a text version to make them more meaningful
+5) ESS reason text and other notifications are combined into a single "marquee" line
+6) The pump switch is hidden unless the Venus relay is configured for pump control. The extra space is available for tanks
+7) AC Mode switch includes INVERTER ONLY mode
+
+The enhanced Mobile Overview page installs a new file to display ESS reason codes as text: SystemReasonMessage.qml
+
+The installation process pauses so the installer can decide which Mobile Overview page is installed and whether the Tank Tile is updated.
 
 You may also use commands like scp and ssh to manually copy files and install the bits and pieces on the Venus device.
 
@@ -87,7 +103,7 @@ The value of /Settings/Devices/TankRepeater/SeeLevelService should then change t
 
 You may need to exit the Mobile Overview screen, then come back to it in order for the tanks column to populate properly.
 
-The repeater can also be disabled by setting /Settings/Devices/TankRepeater/SeeLevelProductId to -1
+The repeater can be disabled by setting /Settings/Devices/TankRepeater/SeeLevelProductId to -1. The repeater will still run but is completely benign in that state, including unhiding the SeeLevel tank tile that constanly switchs tanks.
 
 You can view logs using the unix 'tail' command:
 
@@ -108,7 +124,7 @@ Migrating changes to new versions of the system
 
 When Venus software is updated, it may be necessary to migrate these changes into new versions of the QML files. 
 
-Changes in OverviewMobile.qml included in this package has been marked to easily search for the changed areas making it fairly easy to migrate the changes into new versions of the venus system.
+Changes in OverviewMobile.qml are made via sed (stream editor) to add the necessary lines to hide the SeeLevel tank. This makes the installation independent of version unless some major change occurs that cause sed to modify the file incorrectly. GuiUpdates/sedCommands is the sed command file used to affect the needed additions and that may need to be changed. Changes are clearly marked in the modified file. The original verison of the file is also saved in OverviewMobile.qml.orig just in case.
 
 Changes to TileTank.qml are extensive. Most likely, you will simply be able to overwrite TileTank.qml after the firmware update. If not, a carefull study of the two versions will be necessary to how best to merge the versions. Many of the changes made to TileTank.qml support display of more than 3-4 tanks and may not be necessary for your system. On the other hand, the changes to support no response and errors from the tank may be desired.
 
