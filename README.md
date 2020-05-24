@@ -47,6 +47,52 @@ Note: A venus update will deactivate the Repeater. It will be necessary to run i
 The GUI on the Venus device will be restarted at the end of the install.
 
 
+Installer command line interface:
+
+The installer has a command line interface that allows bypassing some or all of the user prompts.
+
+Each parameter is optional and may occur in any order.
+A missing parameter results in a user prompt for it's value.
+The complete set is:
+
+./install [i venusIp] [action] [eo y|n] [et y\n] [dl y|n] [pid prodId | keep]
+
+i venusIp provides the IP address of the veus device
+This opiton is only meaningful if installer is running on the host.
+
+action is one of the following:
+    activate
+    deactivate
+    uninstall
+    log
+    copy
+    quit
+
+eo specifies whether the enhanced mobile overview or modified mobile overview is installed during activation
+
+et specifies whether the enhanced tank tile will be installed - if not the stock tank tile will be used
+
+dl specifies wheter to delete delete the logs
+
+The above three parameters require a y or n after them
+
+prodid specifies the SeeLevel product ID. the value is either a number specifing a new product ID
+    or "keep" indicating no change
+
+Examples:
+
+./install i 192.168.3.162 activate eo y et y dl n prodid keep
+
+activates the repeater on 192.168.3.162, installing the enhanced overview and tank tiles, preserving logs and the current productId
+
+./install uninstall dl y
+
+deactivates the repeater, restoring GUI to stock and removing repeater files
+
+/install i 192.168.3.162 log
+
+displays the last 100 lines of the repeater log from Venus device at 192.168.3.162
+
 Configuration:
 
 The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
