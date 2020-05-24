@@ -141,15 +141,12 @@ echo
 if [ -z $action ]; then
     while :
     do
-        # no action on command line - prompt for one now
-        if [ -z $action ]; then
-            if [ ! -z "$commandPreamble" ]; then
-                /bin/echo -n "Do you wish to activate, deactivate or uninstall the Repeater? (a/d/u/q/c/l/?): "
-            else
+        if [ ! -z "$commandPreamble" ]; then
+            /bin/echo -n "Do you wish to activate, deactivate or uninstall the Repeater? (a/d/u/q/c/l/?): "
+        else
             /bin/echo -n "Do you wish to activate, deactivate or uninstall the Repeater? (a/d/u/q/l/?): "
-            fi
-            read action
         fi
+        read action
         if [ ! -z $action ]; then
             if [ $action == 'a' ] || [ $action == 'd' ] || [ $action == 'u' ] || [ $action == 'q' ] || [ $action == 'c' ]; then
                 break
