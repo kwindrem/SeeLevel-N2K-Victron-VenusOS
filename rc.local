@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# /data/rc.local file
+# used when adding rc.SeeLevel if rc.local doesn't exist
