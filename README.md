@@ -1,17 +1,27 @@
 This software will allow the SeeLevel NMEA2000 tank sensor system to be used with
 Victron Energy Venus devices (Color Control GX, Venus Gx, etc.).
-Functionality has been verified on Venus version 2.33, 2.42, 2.52 and several 2.60 release candidates(the latest is ~22). Recent changes made the installation independent of version so it is likely the GUI changes will work with many more system versions.
+Functionality has been verified on Venus version 2.33, 2.42, 2.52, 2.54 and several 2.60 release candidates(the latest is ~23). Recent changes made setup independent of version so it is likely the GUI changes will work with many more system versions.
 
-Installation, activation, deactivation, uninstall:
+Setup:
 
 You will need root access to the Venus device. Instructions can be found here:
 https://www.victronenergy.com/live/ccgx:root_access
 The root password needs to be reentered following a Venus update.
 Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
 
-An install script is provided that runs on either the host or on the Venus device. Functionality is the same except when running from the host, files are copied to the Venus device as part of the Activate action. Files can be copied without furter actions with the Copy action.
+A setup script is provided that runs on either the host or on the Venus device. It supports the following actions:
+    Activate installs GUI modificaitons then starts the repeater
+    Deactivate stops the repeater, leaving GUI modifications in place
+    Uninstall deactivates the repeater, restors GUI to stock and removes all repeater files
+    Reinstall installs previously installed GUI modifications and starts the repeater
+        Reinstall is used by boot code to reactivate the repeater following a Venus software update
+        It can also be choosen manually to bypass the GUI prompts after deactivating the repeater
 
-You have the choice of installing an OPTIONAL enhanced Mobile Overview page during installation. Enhancements:
+Additional functionality is provided when running from the host:
+    Install copies files to the Venus device then Activates the repeater
+    Copy just copise the files without furter actions
+
+You have the choice of installing an OPTIONAL enhanced Mobile Overview page. Enhancements:
 
 1) Tiles are arranged to more cloesly follow the power flow through the system.
 2) Voltage, current and frequency values are added to the AC in and out tiles.
@@ -34,39 +44,37 @@ You also have the choice to install an OPTIONAL enhanced Tank Tile. Enhancements
 
 The repeater will work with the stock tank tile, or the modified tank tile will work without the Repeater.
 
-The install script can also deactivate or completely uninstall the Repeater.
 Deactivating will shut down the Repeater and unhide the SeeLevel tank, but leave other GUI modifications in place.
 Uninstalling will return the Venus Device to it's stock configuration.
 
-An installer option is also provided to display the Repeater log without making any changes. After displaying the log, installer returns to the action selection.
+A setup option is also provided to display the Repeater log without making any changes. After displaying the log, setup returns to the action selection.
+setup again following the update to reactivate the Repeater. Choose the Activate action.
 
-The Quit will exit the installer without further actions.
-
-Note: A venus update will deactivate the Repeater. It will be necessary to run install again following the update to reactivate the Repeater. Choose the Activate action.
-
-The GUI on the Venus device will be restarted at the end of the install.
+The GUI on the Venus device will be restarted at the end of setup.
 
 
-Installer command line interface:
+Setup command line interface:
 
-The installer has a command line interface that allows bypassing some or all of the user prompts.
+setup has a command line interface that allows bypassing some or all of the user prompts.
 
 Each parameter is optional and may occur in any order.
 A missing parameter results in a user prompt for it's value.
 The complete set is:
 
-./install [i venusIp] [action] [eo y|n] [et y\n] [dl y|n] [pid prodId | keep]
+./setup [ip venusIp] [action] [eo y|n] [et y\n] [dl y|n] [pid prodId | nc]
 
-i venusIp provides the IP address of the veus device
-This opiton is only meaningful if installer is running on the host.
+ip provides the IP address of the veus device
+This opiton is only meaningful if setup is running on the host.
 
 action is one of the following:
-    activate
-    deactivate
-    uninstall
-    log
-    copy
-    quit
+    install or in or i (host only)
+    copy or c (host only)
+    activate or a
+    reactivate or r
+    deactivate or d
+    uninstall or u
+    log or l
+    quit or q
 
 eo specifies whether the enhanced mobile overview or modified mobile overview is installed during activation
 
@@ -77,19 +85,19 @@ dl specifies wheter to delete delete the logs
 The above three parameters require a y or n after them
 
 prodid specifies the SeeLevel product ID. the value is either a number specifing a new product ID
-    or "keep" indicating no change
+    or or "nc" "indicating no change
 
 Examples:
 
-./install i 192.168.3.162 activate eo y et y dl n prodid keep
+./setup ip 192.168.3.162 activate eo y et y dl n prodid nc
 
 activates the repeater on 192.168.3.162, installing the enhanced overview and tank tiles, preserving logs and the current productId
 
-./install uninstall dl y
+./setup uninstall dl y
 
 deactivates the repeater, restoring GUI to stock and removing repeater files
 
-/install i 192.168.3.162 log
+./setup ip 192.168.3.162 log
 
 displays the last 100 lines of the repeater log from Venus device at 192.168.3.162
 
@@ -97,7 +105,7 @@ Configuration:
 
 The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
 If this is the proper ProductId, no configuration is necessary and the Mobile Overview screen should populate with the repeater tanks. If not, the default ProductId may need to be changed. (Other CanBus tank systems would have a different ProductId.)
-The ProductId can be changed during installation or later using dbus-spy. (You can also rerun install.)
+The ProductId can be changed during setup or later using dbus-spy. (You can also rerun setup.)
 
 To determine the correct ProductId, run dbus-spy on the Venus device and look for the SeeLevel service.
 It will be something like: com.victronenergy.tank.socketcan_can0_di0_uc855
@@ -107,11 +115,15 @@ Inspect that service and make note of the ProductId.
 Change /Settings/Devices/TankRepeater/SeeLevelProductId.
 (If the correct ProductId has been entered, the value of /Settings/Devices/TankRepeater/SeeLevelService should then change to match the SeeLevel service.)
 
-You will be asked for a new ProductId value during installation and can enter it if you know what it is at that time.
+You will be asked for a new ProductId value during setup and can enter it if you know what it is at that time.
 
 You may need to exit the Mobile Overview screen, then come back to it in order for the tanks column to populate properly.
 
 The repeater can be disabled by setting /Settings/Devices/TankRepeater/SeeLevelProductId to -1. The repeater will still run but is completely benign in that state, including unhiding the SeeLevel tank tile that constanly switches tanks.
+
+Activation saves the GUI selections (via flag files /data/TankRepeater/useEnhanced...) for later reactivation. Reactivation can be done manually by choosing it from the menu or on the command line, OR it will run automatically when Venus software is updated. When the repeater is activated, it creates a flag file (/data/TankRepeater/reactivate) that is tested by /data/rc.local to decide if reactivation should be attempted.
+
+/data/rc.local is called during boot to facilitate actions such as reinstalling this repeater.
 
 
 File organization:
@@ -120,10 +132,14 @@ The Repeater files are stored in /data/TankRepeater on Venus because the /data f
 
 All folders and files in this GitHub should be copied to a unix host computer with access to the Venus device. The file hierarchy must be preserved.
 
-One GUI file (OverviewMobile.qml) is modified or (replaced during the install if the Enhanced Overview is selected).
-One file (TileTank.qml) is optionally replaced during install.
+One GUI file (OverviewMobile.qml) is modified or (replaced during setup if the Enhanced Overview is selected).
+One file (TileTank.qml) is optionally replaced during setup.
 The original files are moved to files ending in .orig for easy uninstall in the future.
 The enhanced Mobile Overview page installs a new file to display ESS reason codes as text: SystemReasonMessage.qml
+
+rc.local and rc.SeeLevel are used to create/modify /data/rc.local for automatic reactivation following a Venus software update. rc.local is copied to /data/rc.local if that file doesn't exist. The contents of rc.SeeLevel are appended to /data/rc.local. /data/rc.local is updated any time the repeater is activated (or installed) or deactivated (or uninstalled).
+
+useEnhancedOverview, useEnhancedTankTile and reactivate are flag files to control reactivation.
 
 
 Background/operation:
@@ -160,7 +176,7 @@ dbus-spy can also be used to examine dBus services to aid in troubleshooting pro
 
 New versions of Venus software:
 
-When Venus software is updated, the Repeaer will need to be reactivated. Simply run the installer again.
+When Venus software is updated, the Repeaer will be reactivated automatically via the /data/rc.local mechanisim described above
 
 If you experience problems with the Mobile Overview page after a Venus software update, the Repeater will need to be updated. Until such time as the GitHub files are updated, you may need to revert to a previous verison of Venus software, or uninstall the Repeater.
 
