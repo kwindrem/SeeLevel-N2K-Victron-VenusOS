@@ -10,7 +10,7 @@
 # has NOT been created, the SeeLevel tank repeater is reactivated
 # the tests insure this will happen only once after a software update
 
-if [ ! -f /service/SeeLevelRepeater ] && [ -f /data/TankRepeater/reactivate ]; then
+if [ ! -e /service/SeeLevelRepeater ] && [ -f /data/TankRepeater/reactivate ]; then
     /data/TankRepeater/setup reactivate
 fi
 # endSeeLevel
