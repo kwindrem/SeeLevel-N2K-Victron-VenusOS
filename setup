@@ -39,7 +39,14 @@ srcOmFile=OverviewMobile.qml
 destOmFile=$srcOmFile.orig
 srcTankFile=TileTank.qml
 destTankFile=$srcTankFile.orig
-filesToCopy='SeeLevelRepeater.py ext GuiUpdates ReadMe service setup rc.local rc.SeeLevel'
+filesToCopy='SeeLevelRepeater.py ext GuiUpdates ReadMe service setup rc.SeeLevel'
+
+copyText=""
+actionText=""
+overviewText=""
+tankTileText=""
+delteteLogText=""
+
 
 # display innitial instructions if no command line arguments
 if [ -z $1 ]; then
@@ -179,6 +186,7 @@ fi
 # if reactivating, pull GUI update parameters from flag files
 if [ $action == 'r' ]; then
     echo reactivating repeater
+    actionText="Reactivating repeater"
     if fileExists $repeaterDir/useEnhancedOverview ; then
         enhancedOverview='y'
     else
@@ -202,6 +210,7 @@ fi
 
 # prompt for remaining activate decisions
 if [ $action == 'a' ] || [ $action == 'i' ]; then
+    actionText="Activating repeater"
     # no command line overview selection - prompt for one
     if [ -z $enhancedOverview ]; then
         echo
@@ -290,7 +299,7 @@ fi
 
 if [ ! -z $deleteLogs ] && [ $deleteLogs == 'y' ]; then
     echo removing log files
-    logMessage "Log was emptied"
+    delteteLogText="Log emptied"
     $commandPreamble rm -Rf /var/log/SeeLevelRepeater
 fi
 
@@ -301,6 +310,7 @@ if [ ! -z "$commandPreamble" ] && [ $action != 'u' ] && [ $action != 'r' ]; then
         $commandPreamble mkdir $repeaterDir
     fi
     echo copying Repeater files from host to Venus
+    copyText="Copy files from host"
     scp -rpq -o ControlPath=$controlPath $filesToCopy root@$ipAddr:$repeaterDir
 fi
 
@@ -311,15 +321,11 @@ if fileExists $repeaterDir/install && fileExists $repeaterDir/setup ; then
 fi
 
 if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
-    if [ $action == 'r' ]; then
-        logMessage "Reactivating Repeater"
-    else
-        logMessage "Activating Repeater"
-    fi
     # save original GUI files
     if [ ! -z $enhancedOverview ] && [ $enhancedOverview == 'y' ]; then
         if fileExists $qmlDir/$destOmFile ; then
             echo $destOmFile exists - not changed
+            overviewText="Enhanced Overview"
         else
             echo existing $srcOmFile saved as $destOmFile
             $commandPreamble mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
@@ -345,6 +351,7 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
     # install enhanced Tank Tile
     if  [ ! -z $enhancedTankTile ] && [ $enhancedTankTile == 'y' ]; then
         echo Installing updated Tank Tile
+        tankTileText="Enhanced Tank"
         if fileExists $qmlDir/$destTankFile ; then
             echo $destTankFile exists - not changed
             echo $srcTankFile overwritten
@@ -376,14 +383,15 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
 
     if ! fileExists /data/rc.local ; then
         echo creating /data/rc.local
-        $commandPreamble cp $repeaterDir/rc.local /data
-    fi
-    if [ $($commandPreamble grep -c endSeeLevel /data/rc.local) == 0 ]; then
-        echo adding repeater reactivate to /data/rc.local
-        if [ -z "$commandPreamble" ]; then
-            cat $repeaterDir/rc.SeeLevel >> /data/rc.local
-        else
-            $commandPreamble "cat $repeaterDir/rc.SeeLevel >> /data/rc.local"
+        $commandPreamble cp $repeaterDir/rc.SeeLevel /data/rc.local
+    else
+        if [ $($commandPreamble grep -c endSeeLevel /data/rc.local) == 0 ]; then
+            echo adding repeater reactivate to /data/rc.local
+            if [ -z "$commandPreamble" ]; then
+                sed '1,/end\ intro/d' $repeaterDir/rc.SeeLevel >> /data/rc.local
+            else
+                $commandPreamble "sed '1,/end\ intro/d' $repeaterDir/rc.SeeLevel >> /data/rc.local"
+            fi
         fi
     fi
 
@@ -415,11 +423,13 @@ fi
 
 if [ $action == 'd' ] || [ $action == 'u' ]; then
         echo
-        logMessage "Deactivating Repeater"
         echo unhiding SeeLevel dBus service
         $commandPreamble dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelService SetValue "" > /dev/null 2>&1
         if [ action == 'd' ]; then
             echo leaving GUI modifications in place
+            actionText="Deactivating repeater"
+        else
+            actionText="Uninstalling repeater"
         fi
 
     # make sure repeater isn't reactivated
@@ -449,5 +459,7 @@ if [ $action != 'c' ]; then
     echo Restarting GUI
     $commandPreamble killall gui
 fi
+
+logMessage "$copyText $actionText $overviewText $delteteLogText $delteteLogText"
 
 sshRelease
