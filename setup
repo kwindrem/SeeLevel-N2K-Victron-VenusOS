@@ -13,16 +13,6 @@ fileExists ()
         fi
 }
 
-# add a message to the Repeater log
-logMessage ()
-{
-    if [ -z "$commandPreamble" ]; then
-        echo ++ setup: $1 | tai64n >> /var/log/SeeLevelRepeater/current
-    else
-        $commandPreamble "echo ++ setup: $1 | tai64n >> /var/log/SeeLevelRepeater/current"
-    fi
-}
-
 # closes shared ssh connection
 sshRelease ()
 {
@@ -32,7 +22,7 @@ sshRelease ()
 }
 
 scriptDir=$(dirname "$0")
-repeaterDir=/data/TankRepeater/
+repeaterDir=/data/TankRepeater
 guiDir=$repeaterDir/GuiUpdates
 qmlDir=/opt/victronenergy/gui/qml
 srcOmFile=OverviewMobile.qml
@@ -41,19 +31,17 @@ srcTankFile=TileTank.qml
 destTankFile=$srcTankFile.orig
 filesToCopy='SeeLevelRepeater.py ext GuiUpdates ReadMe service setup rc.SeeLevel'
 
-copyText=""
 actionText=""
 overviewText=""
 tankTileText=""
 delteteLogText=""
 
 
-# display innitial instructions if no command line arguments
+# display innitial message if no command line arguments
 if [ -z $1 ]; then
     echo
-    echo The SeeLevel tank repeater provides a stable display for NMEA2000 tank systems
-    echo that report multiple tanks.
-    echo
+    echo The SeeLevel tank repeater provides a stable display for
+    echo NMEA2000 tank systems that report multiple tanks.
 fi
 
 # collect any command line parameters
@@ -62,7 +50,6 @@ action=''
 enhancedOverview=''
 enhancedTankTile=''
 deleteLogs=''
-productId=''
 while [ ! -z $1 ]
 do
     case $1 in
@@ -106,25 +93,112 @@ do
             shift
             deleteLogs=$1
             ;;
-        prodid | p)
-            shift
-            productId=$1
-            ;;
         *)
             echo warning: unrecognized parameter $1
     esac
     shift
 done
 
+#prompt for parameters not provided on the command line
+
+verbosePrompt='y'
+while [ -z $action ] || ! ( [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'd' ] || [ $action == 'u' ] || [ $action == 'q' ]\
+            || [ $action == 'l' ]|| [ $action == 'i' ] || [ $action == 'c' ] )
+do
+    if [ $verbosePrompt == 'y' ]; then
+        echo
+        echo "This script will do the following:"
+        echo "  Activate (a) updates the GUI files and starts the repeater"
+        echo "  Reactivate (r) Activates based on GUI options specified on for last activate"
+        echo "  Deactivate (d) stops the repeater, exposing the SeeLevel tank in the tanks column"
+        echo "  Uninstall (u) deactivates, restores GUI files to stock and remove all repeater files"
+        echo "  Copy (c) copies file from host to Venus and exits (host only)"
+        echo "  Install (i) Copy then Activate (host only)"
+        echo "  Quit (q) without further action"
+        echo "  Display Log (l) outputs the last 100 lines of the Repeater log"
+        echo
+        verbosePrompt='n'
+    fi
+    /bin/echo -n "Choose an action from the list above: "
+    read action
+done
+
+if [ $action == 'q' ]; then
+    sshRelease
+    exit
+fi
+
+# prompt for remaining activate parameters
+if [ $action == 'a' ] || [ $action == 'i' ]; then
+    actionText="Activating repeater"
+
+    verbosePrompt='y'
+    while [ -z $enhancedOverview ] || ! ( [ $enhancedOverview == 'y' ] || [ $enhancedOverview == 'n' ] )
+    do
+        if [ $verbosePrompt == 'y' ]; then
+            echo
+            echo "The Enhanced overview includes the following changes:"
+            echo "  1) Hides the SeeLevel tank (changing values)"
+            echo "  2) Tiles are arranged to more cloesly follow the power flow through the system"
+            echo "  3) Voltage, current and frequency values are added to the AC in and out tiles"
+            echo "  4) Battery remaining time is added to the Battery tile"4
+            echo "  5) ESS reason codes are replaced with a text version to make them more meaningful"
+            echo "  6) ESS reason text and other notifications are combined into a single "marquee" line"
+            echo "  7) The pump switch is hidden unless the Venus relay is configured for pump control"
+            echo "  8) AC Mode switch includes INVERTER ONLY mode"
+            echo
+            verbosePrompt='n'
+        fi
+        /bin/echo -n "Do you wish to install the Enhanced Mobile Overview Page? (y/n): "
+        read enhancedOverview
+    done
+
+    verbosePrompt='y'
+    while [ -z $enhancedTankTile ] || ! ( [ $enhancedTankTile == 'y' ] || [ $enhancedTankTile == 'n' ] )
+    do
+        if [ $verbosePrompt == 'y' ]; then
+            echo
+            echo "Tank Tile enhancements:"
+            echo "  1) The updated TileTank.qml provides the following changes:"
+            echo "  2) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
+            echo "  3) Color of bar turns red on limits instead of blinking"
+            echo "  4) Color of bar text turns red when bar lenght is too short to be seen"
+            echo "  5) If space is limited, bar graph height and associated text are reduced"
+            echo "  6) Added custom tank name"
+            echo
+            verbosePrompt='n'
+        fi
+        /bin/echo -n "Do you wish to install the OPTIONAL Tank Tile changes (y/n): "
+        read enhancedTankTile
+    done
+fi
+
+# do not delete logs for some actions
+if [ -z $deleteLogs ] && ( [ $action == 'r' ] || [ $action == 'c' ] || [ $action == 'q' ] || [ $action == 'l' ] ); then
+    deleteLogs='n'
+fi
+
+# prompt for deleting logs if not previously specified
+echo
+while [ -z $deleteLogs ] || ! ( [ $deleteLogs == 'y' ] || [ $deleteLogs == 'n' ] )
+do
+    /bin/echo -n "Do you wish to remove log files (y/n): "
+    read deleteLogs
+done
+
+
+# check to see if script is running on host or Venus device
 # running on Venus device
 if [ -f /opt/victronenergy/version ]; then
     version=$(head -n 1 /opt/victronenergy/version)
     echo running on Venus - version $version
     commandPreamble=""
+
 # running on host
 else
-    # no IP address on command line
-    if [ -z $ipAddr ]; then
+    # persist at getting a valid IP address
+    while [ -z $ipAddr ]
+    do
         # try to get last one from file
         if [ -f "$scriptDir/venusIp" ]; then
             ipAddr=$( cat "$scriptDir/venusIp")
@@ -139,50 +213,80 @@ else
             /bin/echo -n "Enter the IP address of the Venus OS device: "
             read ipAddr
         fi
-    fi
-    # make innitial ssh connection and set up sharing
-    controlPath=~/.ssh/%r@%h:%p
-    commandPreamble="ssh -o ControlPath=$controlPath root@$ipAddr"
-    sshRelease
-    version=$($commandPreamble -o ControlMaster=yes -o ControlPersist=5m head -n 1 /opt/victronenergy/version)
-    if [ -z $version ]; then
-        echo $ipAddr does not appear to be a Venus device - no version file
+        if [ -z $ipAddr ]; then
+            continue
+        fi
+        # make innitial ssh connection and set up ssh sharing
+        controlPath=~/.ssh/%r@%h:%p
+        commandPreamble="ssh -o ControlPath=$controlPath root@$ipAddr"
+        # close a previous shared ssh connection if any
         sshRelease
-        exit
-    fi
+        # attempt a new connection
+        version=$($commandPreamble -o ControlMaster=yes -o ControlPersist=5m head -n 1 /opt/victronenergy/version)
+        if [ -z $version ]; then
+            echo $ipAddr does not appear to be a Venus device
+            ipAddr=""
+        fi
+    done
+
     echo connected to remote Venus version $version at $ipAddr
     # save IP address for future use
     echo $ipAddr > "$scriptDir/venusIp"
+
+    # assume we'll copy and continue
+    copyToVenus='y'
+    continueOnVenus='y'
+    # don't continue if uninstalling and repeater never installed
+    if [ $action == 'u' ]; then
+        copyToVenus='n'
+        # don't continue if repeater was never installed
+        if ! fileExists $repeaterDir ; then
+            continueOnVenus='n'
+            echo no files to delete
+        fi
+    # don't continue if just copying
+    elif [ $action == 'c' ]; then
+        continueOnVenus='n'
+    # display log command executed on host - don't copy or continue
+    elif [ $action == 'l' ]; then
+        copyToVenus='n'
+        continueOnVenus='n'
+    fi
+
+    if [ $copyToVenus == 'y' ]; then
+        if ! fileExists $repeaterDir ; then
+            echo creating TankRepeater directory
+            $commandPreamble mkdir $repeaterDir
+        fi
+        echo copying Repeater files from host to Venus
+        scp -rpq -o ControlPath=$controlPath $filesToCopy root@$ipAddr:$repeaterDir
+    fi
+
+    # continue setup on Venus device
+    if [ $continueOnVenus == 'y' ]; then
+        echo contining setup on Venus ...
+        $commandPreamble $repeaterDir/setup $action eo $enhancedOverview et $enhancedTankTile dl $deleteLogs
+    fi
 fi
 
-echo
-# no action on command line - prompt for one now
-if [ -z $action ]; then
-    while :
-    do
-        echo "This script will do the following:"
-        echo "  Activate (a) updates the GUI files and start the repeater"
-        echo "  Reactivate (r) Activates based on GUI options specified on for last activate"
-        echo "  Deactivate (d) stops the repeater, exposing the SeeLevel tank in the tanks column"
-        echo "  Uninstall (u) deactivates, restores GUI files to stock then remove all files"
-        if [ ! -z "$commandPreamble" ]; then
-            echo "  Copy (c) copies file from host to Venus and exits"
-            echo "  Install (i) Copy then Activate"
-        fi
-        echo "  Quit (q) without further action"
-        echo "  Display Log (l) outputs the last 100 lines of the Repeater log"
-        echo
-        /bin/echo -n "Choose the desired action from the list above: "
-        read action
-        if [ ! -z $action ] && [ $action != '?' ]; then
-            if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'd' ] || [ $action == 'u' ] || [ $action == 'q' ] || [ $action == 'l' ]; then
-                break
-            elif [ ! -z "$commandPreamble" ] && ([ $action == 'i' ] || [ $action == 'c' ]); then
-                break
-            fi
-        fi
-    done
+# just display log and exit - runs from host or Venus !
+if [ $action == 'l' ]; then
+    $commandPreamble tail -100 /var/log/SeeLevelRepeater/current | $commandPreamble tai64nlocal
+    sshRelease
+    exit
 fi
+
+# exit here if running on host
+if [ "$commandPreamble" ]; then
+    sshRelease
+    exit
+fi
+
+
+# the remainder of this script runs ONLY on the Venus device
+# we get here from the ssh call to setup above
+# all parameters are passed to setup so all prompts for user input are bypassed
+
 # if reactivating, pull GUI update parameters from flag files
 if [ $action == 'r' ]; then
     echo reactivating repeater
@@ -197,127 +301,36 @@ if [ $action == 'r' ]; then
     else
         enhancedTankTile='n'
     fi
-    # set fixed params for reactivate action
-    productId='nc'
-elif [ $action == 'l' ]; then
-    $commandPreamble tail -100 /var/log/SeeLevelRepeater/current | $commandPreamble tai64nlocal
 fi
 
-if [ $action == 'q' ] || [ $action == 'l' ]; then
-    sshRelease
-    exit
-fi
-
-# prompt for remaining activate decisions
-if [ $action == 'a' ] || [ $action == 'i' ]; then
-    actionText="Activating repeater"
-    # no command line overview selection - prompt for one
-    if [ -z $enhancedOverview ]; then
-        echo
-        while :
-        do
-            echo
-            echo "The Enhanced overview includes the following changes:"
-            echo "  1) Hides the SeeLevel tank (changing values)"
-            echo "  2) Tiles are arranged to more cloesly follow the power flow through the system"
-            echo "  3) Voltage, current and frequency values are added to the AC in and out tiles"
-            echo "  4) Battery remaining time is added to the Battery tile"4
-            echo "  5) ESS reason codes are replaced with a text version to make them more meaningful"
-            echo "  6) ESS reason text and other notifications are combined into a single "marquee" line"
-            echo "  7) The pump switch is hidden unless the Venus relay is configured for pump control"
-            echo "  8) AC Mode switch includes INVERTER ONLY mode"
-            echo
-            /bin/echo -n "Do you wish to install the Enhanced Mobile Overview Page? (y/n): "
-            read enhancedOverview
-            if  [ ! -z $enhancedOverview ] && ( [ $enhancedOverview == 'y' ] || [ $enhancedOverview == 'n' ] ); then
-                break
-            fi
-        done
-    fi
-    # no command line tank tile selection - prompt for one
-    if [ -z $enhancedTankTile ]; then
-        echo
-        while :
-        do
-            echo
-            echo "Tank Tile enhancements:"
-            echo "  1) The updated TileTank.qml provides the following changes:"
-            echo "  2) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
-            echo "  3) Color of bar turns red on limits instead of blinking"
-            echo "  4) Color of bar text turns red when bar lenght is too short to be seen"
-            echo "  5) If space is limited, bar graph height and associated text are reduced"
-            echo "  6) Added custom tank name"
-            echo
-            /bin/echo -n "Do you wish to install the OPTIONAL Tank Tile changes (y/n): "
-            read enhancedTankTile
-            
-            if  [ ! -z $enhancedTankTile ] && ( [ $enhancedTankTile == 'y' ] || [ $enhancedTankTile == 'n' ] ); then
-                break
-            fi
-        done
-    fi
-fi
-
-# if delete logs not previously spcified (command line), set to no for some actions
-if [ -z $deleteLogs ] && ( [ $action = 'a' ] || [ $action == 'c' ] || [ $action == 'r' ] || [ $action == 'd' ] ); then
-    deleteLogs='n'
-fi
-
-if [ -z $deleteLogs ]; then
-    echo
-    while :
-    do
-        /bin/echo -n "Do you wish to remove log files (y/n): "
-        read deleteLogs
-        
-        if  [ ! -z $deleteLogs ] && ( [ $deleteLogs == 'y' ] || [ $deleteLogs == 'n' ] ); then
-            break
-        else
-            echo
-            echo must answer y or n
-            echo
-        fi
-    done
-fi
-
-# unless just copying files, stop repeater - it may be restarted later if appropriate
+# stop repeater - it will be restarted later if appropriate
 # all Repeater functionality is deactivated but any GUI modifications remain in place
-# at least for now
-if [ $action != 'c' ]; then
-    echo stopping repeater processes
-    $commandPreamble rm -f /service/SeeLevelRepeater
-    $commandPreamble ps -l | grep SeeLevelRepeater | grep multilog | awk '{print $4}' | xargs kill > /dev/null 2>&1
-    $commandPreamble ps | grep SeeLevelRepeater | grep -v grep  | awk '{print $1}' | xargs kill > /dev/null 2>&1
-fi
+echo stopping repeater processes
+rm -f /service/SeeLevelRepeater
+ps -l | grep SeeLevelRepeater | grep multilog | awk '{print $4}' | xargs kill > /dev/null 2>&1
+ps | grep SeeLevelRepeater | grep -v grep  | awk '{print $1}' | xargs kill > /dev/null 2>&1
 
 
 # if uninstalling, remove existing Repeater files
 if [ $action == 'u' ]; then
     echo "removing all Repeater files (if any)"
-    $commandPreamble rm -rf $repeaterDir
+    rm -rf $repeaterDir
 fi
 
 if [ ! -z $deleteLogs ] && [ $deleteLogs == 'y' ]; then
     echo removing log files
     delteteLogText="Log emptied"
-    $commandPreamble rm -Rf /var/log/SeeLevelRepeater
+    rm -Rf /var/log/SeeLevelRepeater
 fi
 
-# copy files to Venus if running on host
-if [ ! -z "$commandPreamble" ] && [ $action != 'u' ] && [ $action != 'r' ]; then
-    if ! fileExists $repeaterDir ; then
-        echo creating TankRepeater directory
-        $commandPreamble mkdir $repeaterDir
-    fi
-    echo copying Repeater files from host to Venus
-    copyText="Copy files from host"
-    scp -rpq -o ControlPath=$controlPath $filesToCopy root@$ipAddr:$repeaterDir
+# remove old installer files if present
+if fileExists $repeaterDir/install ; then
+    echo "removing obsolete install file"
+    rm -f $repeaterDir/install
 fi
-
-# remove old installer script if present
-if fileExists $repeaterDir/install && fileExists $repeaterDir/setup ; then
-    echo "removing obsolete install file (was replaced with setup)"
-    $commandPreamble rm -f $repeaterDir/install
+if fileExists $repeaterDir/rc.local ; then
+    echo "removing obsolete rc file"
+    rm -f $repeaterDir/rc.local
 fi
 
 if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
@@ -328,25 +341,21 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
             overviewText="Enhanced Overview"
         else
             echo existing $srcOmFile saved as $destOmFile
-            $commandPreamble mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
+            mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
         fi
         echo Installing Ennhanced Mobile Overview
-        $commandPreamble cp $guiDir/Enhanced$srcOmFile $qmlDir/$srcOmFile
-        $commandPreamble cp $guiDir/SystemReasonMessage.qml /$qmlDir
+        cp $guiDir/Enhanced$srcOmFile $qmlDir/$srcOmFile
+        cp $guiDir/SystemReasonMessage.qml /$qmlDir
     else
         if fileExists $qmlDir/$destOmFile ; then
             echo $destOmFile exists - not changed
         else
             echo existing $srcOmFile saved as $destOmFile
-            $commandPreamble mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
-            $commandPreamble rm -f $qmlDir/SystemReasonMessage.qml
+            mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
+            rm -f $qmlDir/SystemReasonMessage.qml
         fi
         echo Modifying $srcOmFile based on $destOmFile
-        if [ -z "$commandPreamble" ]; then
-            sed -f $guiDir/sedCommands $qmlDir/$destOmFile > $qmlDir/$srcOmFile
-        else
-            $commandPreamble "sed -f $guiDir/sedCommands $qmlDir/$destOmFile > $qmlDir/$srcOmFile"
-        fi
+        sed -f $guiDir/sedCommands $qmlDir/$destOmFile > $qmlDir/$srcOmFile
     fi
     # install enhanced Tank Tile
     if  [ ! -z $enhancedTankTile ] && [ $enhancedTankTile == 'y' ]; then
@@ -357,13 +366,13 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
             echo $srcTankFile overwritten
         else
             echo $srcTankFile saved as $destTankFile
-            $commandPreamble mv $qmlDir/$srcTankFile $qmlDir/$destTankFile
+            mv $qmlDir/$srcTankFile $qmlDir/$destTankFile
         fi
-        $commandPreamble cp $guiDir/$srcTankFile $qmlDir
+        cp $guiDir/$srcTankFile $qmlDir
     # restore origial tank file if it exists
     elif fileExists $qmlDir/$destTankFile ; then
         echo $destTankFile exists, making it active again
-        $commandPreamble mv $qmlDir/$destTankFile $qmlDir/$srcTankFile
+        mv $qmlDir/$destTankFile $qmlDir/$srcTankFile
     else
         echo $srcTankFile not changed
     fi
@@ -371,95 +380,73 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
     # setup for reactivate - save GUI choices and install reactivate code in rc.local
     $commandPreamble touch $repeaterDir/reactivate
     if [ ! -z $enhancedOverview ] && [ $enhancedOverview == 'y' ]; then
-        $commandPreamble touch $repeaterDir/useEnhancedOverview
+        touch $repeaterDir/useEnhancedOverview
     else
-        $commandPreamble rm -f $repeaterDir/useEnhancedOverview
+        rm -f $repeaterDir/useEnhancedOverview
     fi
     if [ ! -z $enhancedTankTile ] && [ $enhancedTankTile == 'y' ]; then
-        $commandPreamble touch $repeaterDir/useEnhancedTankTile
+        touch $repeaterDir/useEnhancedTankTile
     else
-        $commandPreamble rm -f $repeaterDir/useEnhancedTankTile
+        rm -f $repeaterDir/useEnhancedTankTile
     fi
 
     if ! fileExists /data/rc.local ; then
         echo creating /data/rc.local
-        $commandPreamble cp $repeaterDir/rc.SeeLevel /data/rc.local
+        cp $repeaterDir/rc.SeeLevel /data/rc.local
     else
-        if [ $($commandPreamble grep -c endSeeLevel /data/rc.local) == 0 ]; then
+        if [ $(grep -c endSeeLevel /data/rc.local) == 0 ]; then
             echo adding repeater reactivate to /data/rc.local
-            if [ -z "$commandPreamble" ]; then
-                sed '1,/end\ intro/d' $repeaterDir/rc.SeeLevel >> /data/rc.local
-            else
-                $commandPreamble "sed '1,/end\ intro/d' $repeaterDir/rc.SeeLevel >> /data/rc.local"
-            fi
+            sed '1,/end\ intro/d' $repeaterDir/rc.SeeLevel >> /data/rc.local
         fi
     fi
-
-    echo starting repeater process
-    $commandPreamble ln -s $repeaterDir/service /service/SeeLevelRepeater
-
-    echo waiting 10 seconds for Repeater to start
-    sleep 10
-    # no product ID on command line - prompt for it
-    if [ -z $productId ]; then
-        echo reading productId from settings - takes some time, please wait
-        while :
-        do
-            productId=$($commandPreamble dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelProductId GetValue 2>/dev/null)
-            if [ ! -z $productId ]; then
-                break
-            fi
-        done
-        echo
-        echo "the current Seelevel system Product ID is $productId"
-        /bin/echo -n "If you would like to change it now, enter a new value here: (cr to not change it)"
-        read productId
+    
+    startRepeater='y'
+else
+    echo
+    echo unhiding SeeLevel dBus service
+    dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelService SetValue "" > /dev/null 2>&1
+    if [ action == 'd' ]; then
+        echo leaving GUI modifications in place
+        actionText="Deactivating repeater"
+    else
+        actionText="Uninstalling repeater"
     fi
-    if [ ! -z $productId ] && [ $productId != 'nc' ]; then
-        echo updating SeeLevel productId to $productId
-        $commandPreamble dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelProductId SetValue $productId
-    fi
-fi
-
-if [ $action == 'd' ] || [ $action == 'u' ]; then
-        echo
-        echo unhiding SeeLevel dBus service
-        $commandPreamble dbus -y com.victronenergy.settings /Settings/Devices/TankRepeater/SeeLevelService SetValue "" > /dev/null 2>&1
-        if [ action == 'd' ]; then
-            echo leaving GUI modifications in place
-            actionText="Deactivating repeater"
-        else
-            actionText="Uninstalling repeater"
-        fi
 
     # make sure repeater isn't reactivated
-    $commandPreamble rm -f  $repeaterDir/reactivate
-fi
-
-# uninstall - restore GUI (files were removed above)
- if [ $action == 'u' ]; then
+    rm -f  $repeaterDir/reactivate
+    # uninstall - restore GUI (files were removed above)
+    if [ $action == 'u' ]; then
         echo
         echo restoring oritinal Mobile Overview and Tank Tile files
         if fileExists $qmlDir/$destOmFile ; then
             echo $destOmFile exists, making it active again
-            $commandPreamble mv $qmlDir/$destOmFile $qmlDir/$srcOmFile
+            mv $qmlDir/$destOmFile $qmlDir/$srcOmFile
         else
             echo $destOmFile does not exist - $srcOmFile not changed
         fi
         if fileExists $qmlDir/$destTankFile ; then
             echo $destTankFile exists, making it active again
-            $commandPreamble mv $qmlDir/$destTankFile $qmlDir/$srcTankFile
+            mv $qmlDir/$destTankFile $qmlDir/$srcTankFile
         else
             echo $destTankFile does not exist - $srcTankFile not changed
         fi
-        $commandPreamble rm -f $qmlDir/SystemReasonMessage.qml
+        rm -f $qmlDir/SystemReasonMessage.qml
+    fi
+    startRepeater='n'
 fi
 
-if [ $action != 'c' ]; then
-    echo Restarting GUI
-    $commandPreamble killall gui
+# add a message to the Repeater log regarding this setup
+echo ++ setup: "$actionText $overviewText $tankTileText $delteteLogText" | tai64n >> /var/log/SeeLevelRepeater/current
+
+if [ $startRepeater == 'y' ]; then
+    echo starting repeater process
+    ln -s $repeaterDir/service /service/SeeLevelRepeater
+
+    echo waiting 10 seconds for Repeater to start
+    sleep 10
 fi
 
-logMessage "$copyText $actionText $overviewText $delteteLogText $delteteLogText"
 
-sshRelease
+
+echo Restarting GUI
+killall gui
