@@ -1,5 +1,11 @@
+#!/bin/sh
 
-# this is appended to /data/rc.local so it runs every time Venus boots
+# begin intro
+# this entire file becomes /data/rc.local if it does not already exist
+# if /data/rc.local DOES exist, the lines this intro are appended to /data/rc.local
+# end intro
+
+# this code activates the SeeLevel Repeater following a Venus software update
 # if the reactivate flag (file) is set AND the repeater service
 # has NOT been created, the SeeLevel tank repeater is reactivated
 # the tests insure this will happen only once after a software update
