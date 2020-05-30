@@ -101,24 +101,23 @@ done
 
 #prompt for parameters not provided on the command line
 
-verbosePrompt='y'
+if [ -z $action ]; then
+    echo
+    echo "This script will do the following:"
+    echo "  Activate (a) updates the GUI files and starts the repeater"
+    echo "  Reactivate (r) Activates based on GUI options specified on for last activate"
+    echo "  Deactivate (d) stops the repeater, exposing the SeeLevel tank in the tanks column"
+    echo "  Uninstall (u) deactivates, restores GUI files to stock and remove all repeater files"
+    echo "  Quit (q) without further action"
+    echo "  Display Log (l) outputs the last 100 lines of the Repeater log"
+    echo " additional choices when running on host"
+    echo "  Copy (c) copies file from host to Venus and exits"
+    echo "  Install (i) Copy then Activate"
+    echo
+fi
 while [ -z $action ] || ! ( [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'd' ] || [ $action == 'u' ] || [ $action == 'q' ]\
             || [ $action == 'l' ]|| [ $action == 'i' ] || [ $action == 'c' ] )
 do
-    if [ $verbosePrompt == 'y' ]; then
-        echo
-        echo "This script will do the following:"
-        echo "  Activate (a) updates the GUI files and starts the repeater"
-        echo "  Reactivate (r) Activates based on GUI options specified on for last activate"
-        echo "  Deactivate (d) stops the repeater, exposing the SeeLevel tank in the tanks column"
-        echo "  Uninstall (u) deactivates, restores GUI files to stock and remove all repeater files"
-        echo "  Copy (c) copies file from host to Venus and exits (host only)"
-        echo "  Install (i) Copy then Activate (host only)"
-        echo "  Quit (q) without further action"
-        echo "  Display Log (l) outputs the last 100 lines of the Repeater log"
-        echo
-        verbosePrompt='n'
-    fi
     /bin/echo -n "Choose an action from the list above: "
     read action
 done
@@ -128,46 +127,42 @@ if [ $action == 'q' ]; then
     exit
 fi
 
-# prompt for remaining activate parameters
 if [ $action == 'a' ] || [ $action == 'i' ]; then
     actionText="Activating repeater"
 
-    verbosePrompt='y'
+    # prompt for remaining activate parameters
+    if [ -z $enhancedOverview ]; then
+        echo
+        echo "The Enhanced overview includes the following changes:"
+        echo "  1) Hides the SeeLevel tank (changing values)"
+        echo "  2) Tiles are arranged to more cloesly follow the power flow through the system"
+        echo "  3) Voltage, current and frequency values are added to the AC in and out tiles"
+        echo "  4) Battery remaining time is added to the Battery tile"4
+        echo "  5) ESS reason codes are replaced with a text version to make them more meaningful"
+        echo "  6) ESS reason text and other notifications are combined into a single "marquee" line"
+        echo "  7) The pump switch is hidden unless the Venus relay is configured for pump control"
+        echo "  8) AC Mode switch includes INVERTER ONLY mode"
+        echo
+    fi
     while [ -z $enhancedOverview ] || ! ( [ $enhancedOverview == 'y' ] || [ $enhancedOverview == 'n' ] )
     do
-        if [ $verbosePrompt == 'y' ]; then
-            echo
-            echo "The Enhanced overview includes the following changes:"
-            echo "  1) Hides the SeeLevel tank (changing values)"
-            echo "  2) Tiles are arranged to more cloesly follow the power flow through the system"
-            echo "  3) Voltage, current and frequency values are added to the AC in and out tiles"
-            echo "  4) Battery remaining time is added to the Battery tile"4
-            echo "  5) ESS reason codes are replaced with a text version to make them more meaningful"
-            echo "  6) ESS reason text and other notifications are combined into a single "marquee" line"
-            echo "  7) The pump switch is hidden unless the Venus relay is configured for pump control"
-            echo "  8) AC Mode switch includes INVERTER ONLY mode"
-            echo
-            verbosePrompt='n'
-        fi
         /bin/echo -n "Do you wish to install the Enhanced Mobile Overview Page? (y/n): "
         read enhancedOverview
     done
 
-    verbosePrompt='y'
+    if [ -z $enhancedTankTile ]; then
+        echo
+        echo "Tank Tile enhancements:"
+        echo "  1) The updated TileTank.qml provides the following changes:"
+        echo "  2) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
+        echo "  3) Color of bar turns red on limits instead of blinking"
+        echo "  4) Color of bar text turns red when bar lenght is too short to be seen"
+        echo "  5) If space is limited, bar graph height and associated text are reduced"
+        echo "  6) Added custom tank name"
+        echo
+    fi
     while [ -z $enhancedTankTile ] || ! ( [ $enhancedTankTile == 'y' ] || [ $enhancedTankTile == 'n' ] )
     do
-        if [ $verbosePrompt == 'y' ]; then
-            echo
-            echo "Tank Tile enhancements:"
-            echo "  1) The updated TileTank.qml provides the following changes:"
-            echo "  2) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
-            echo "  3) Color of bar turns red on limits instead of blinking"
-            echo "  4) Color of bar text turns red when bar lenght is too short to be seen"
-            echo "  5) If space is limited, bar graph height and associated text are reduced"
-            echo "  6) Added custom tank name"
-            echo
-            verbosePrompt='n'
-        fi
         /bin/echo -n "Do you wish to install the OPTIONAL Tank Tile changes (y/n): "
         read enhancedTankTile
     done
