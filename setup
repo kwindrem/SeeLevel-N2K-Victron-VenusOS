@@ -333,9 +333,9 @@ if [ $action == 'a' ] || [ $action == 'r' ] || [ $action == 'i' ]; then
     if [ ! -z $enhancedOverview ] && [ $enhancedOverview == 'y' ]; then
         if fileExists $qmlDir/$destOmFile ; then
             echo $destOmFile exists - not changed
-            overviewText="Enhanced Overview"
         else
             echo existing $srcOmFile saved as $destOmFile
+            overviewText="Enhanced Overview"
             mv $qmlDir/$srcOmFile $qmlDir/$destOmFile
         fi
         echo Installing Ennhanced Mobile Overview
