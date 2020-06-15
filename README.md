@@ -21,6 +21,11 @@ Additional functionality is provided when running from the host:
     Install copies files to the Venus device then Activates the repeater
     Copy just copise the files without furter actions
 
+Installing from a non-unix host requires some additional steps since the setup script won't run there.
+I suggest that the GitHub repository be downloaded as a zip file and copied to the Venus target.
+From there, it can be unzipped and the entire directory structure moved to /data/TankRepeater.
+Then, cd to that directory and run ./setup. This will help the install run smoothly.
+
 You have the choice of installing an OPTIONAL enhanced Mobile Overview page. Enhancements:
 
 1) Tiles are arranged to more cloesly follow the power flow through the system.
