@@ -1,6 +1,6 @@
 This software will allow the SeeLevel NMEA2000 tank sensor system to be used with
 Victron Energy Venus devices (Color Control GX, Venus Gx, etc.).
-Functionality has been verified on Venus version 2.33, 2.42, 2.52, 2.54 and 2.60 release candidates through ~26. Recent changes made setup independent of version so it is likely the GUI changes will work with many more system versions.
+Functionality has been verified on Venus version 2.33, 2.42, 2.52, 2.54 and 2.60 release candidates through ~28. Recent changes made setup independent of version so it is likely the GUI changes will work with many more system versions.
 
 Setup:
 
