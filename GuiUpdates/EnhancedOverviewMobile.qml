@@ -435,7 +435,8 @@ OverviewPage {
 		anchors.bottom: parent.bottom
 		property variant texts: { 4: qsTr("OFF"), 3: qsTr("ON"), 1: qsTr("CHARGER ONLY"), 2: qsTr("INVERTER ONLY") }
 		property int value: mode.valid ? mode.value : 3
-		property bool reset: false
+        property int shownValue: applyAnimation2.running ? applyAnimation2.pendingValue : value
+
 		isCurrentItem: (buttonIndex == 1)
 		focus: root.active && isCurrentItem
 
@@ -448,7 +449,7 @@ OverviewPage {
 
 		values: [
 			TileText {
-				text: modeIsAdjustable.valid && numberOfMultis === 1 ? qsTr("%1").arg(acModeButton.texts[acModeButton.value]) : qsTr("NOT AVAILABLE")
+                text: modeIsAdjustable.valid && numberOfMultis === 1 ? qsTr("%1").arg(acModeButton.texts[acModeButton.shownValue]) : qsTr("NOT AVAILABLE")
 			}
 		]
 
@@ -477,23 +478,24 @@ OverviewPage {
 				return
 			}
 
-			reset = true
-			applyAnimation2.restart()
-			reset = false
-			switch(value) {
-			case 4:
-				value = 3
-				break;
+            switch (shownValue) {
+            case 4:
+                applyAnimation2.pendingValue = 3
+                break;
             case 3:
-                value = 1
+                applyAnimation2.pendingValue = 1
                 break;
             case 1:
-                value = 2
+ //////// modify to add inverter only (was = 4)
+                applyAnimation2.pendingValue = 2
                 break;
+//////// add case 2 (inverter only)
             case 2:
-                value = 4
+                applyAnimation2.pendingValue = 4
                 break;
-			}
+            }
+
+            applyAnimation2.restart()
 		}
 
 		MouseArea {
@@ -519,7 +521,9 @@ OverviewPage {
 
 		SequentialAnimation {
 			id: applyAnimation2
-			NumberAnimation {
+            property int pendingValue
+
+            NumberAnimation {
 				target: timerRect2
 				property: "width"
 				from: 0
@@ -547,7 +551,11 @@ OverviewPage {
 				property: "width"
 				value: 0
 			}
-			onCompleted: if (!acModeButton.reset) mode.setValue(acModeButton.value)
+            onCompleted: if (!acModeButton.reset) mode.setValue(acModeButton.value)
+
+            ScriptAction { script: mode.setValue(applyAnimation2.pendingValue) }
+
+            PauseAnimation { duration: 1000 }
 		}
 	}
 
