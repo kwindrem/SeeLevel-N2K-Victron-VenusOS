@@ -1,6 +1,6 @@
 // Enhancements to OverviewMobile screen
 
-// This version supports Venus versions 2.4, 2.5 and 2.60 through ~41
+// This version supports Venus versions 2.4, 2.5 and 2.60 through ~42
 // Removed logo and added AC INPUT and SYSTEM tiles originally displayed on other overviews
 // Added voltage, current and frequency to AC INPUT and AC LOADS tiles
 // Rearranged tiles to match a left to right signal flow : sources on left, loads on right
